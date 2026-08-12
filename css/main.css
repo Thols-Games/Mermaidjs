@@ -1,0 +1,99 @@
+    :root {
+      color-scheme: dark;
+
+      /* Dark Theme (Default) */
+      --bg-body: #1e1e2e;
+      --bg-header: #1e1e2e;
+      --bg-toolbar: #1e1e2e;
+      --bg-editor: #12121a;
+      --bg-preview: #1e1e2e;
+      --bg-gutter: #181825;
+      --bg-element: #313244;
+      --bg-element-hover: #45475a;
+      --bg-snippet-btn: #242533;
+      --bg-snippet-btn-hover: #313244;
+      --bg-zoom: #181825;
+      --bg-canvas: #11111b;
+      --bg-dot: #313244;
+
+      --border-color: #313244;
+      --border-element: #45475a;
+      --border-element-hover: #585b70;
+
+      --text-main: #cdd6f4;
+      --text-muted: #a6adc8;
+      --text-gutter: #6c7086;
+
+      --accent: #9370DB;
+      --shadow: rgba(0, 0, 0, 0.4);
+    }
+
+    :root.theme-teal {
+      /* Teal Theme */
+      --bg-body: #0a1822;
+      --bg-header: #0c1c28;
+      --bg-toolbar: #0c1c28;
+      --bg-editor: #0c1c28;
+      --bg-preview: #0a1822;
+      --bg-gutter: #08151f;
+      --bg-element: #142836;
+      --bg-element-hover: #1c3648;
+      --bg-snippet-btn: #142836;
+      --bg-snippet-btn-hover: #1c3648;
+      --bg-zoom: #0c1c28;
+      --bg-canvas: #0a1822;
+      --bg-dot: #162f42;
+
+      --border-color: #1a2f38;
+      --border-element: #1d3345;
+      --border-element-hover: #2a475d;
+
+      --text-main: #d7ece8;
+      --text-muted: #9fc4c0;
+      --text-gutter: #6b8f8b;
+
+      --accent: #35d0c0;
+      --shadow: rgba(0, 0, 0, 0.5);
+    }
+
+    :root.theme-light {
+      color-scheme: light;
+
+      --bg-body: #eef6f4;
+      --bg-header: #eef6f4;
+      --bg-toolbar: #fff;
+      --bg-editor: #fff;
+      --bg-preview: #eef6f4;
+      --bg-gutter: #f5fbf9;
+      --bg-element: #fff;
+      --bg-element-hover: #e6f0ed;
+      --bg-snippet-btn: #fff;
+      --bg-snippet-btn-hover: #e6f0ed;
+      --bg-zoom: #fff;
+      --bg-canvas: #eef6f4;
+      --bg-dot: #d3e5e1;
+
+      --border-color: #d9e7e4;
+      --border-element: #d9e7e4;
+      --border-element-hover: #b8cfca;
+
+      --text-main: #1d4a43;
+      --text-muted: #4c7a72;
+      --text-gutter: #7a9c97;
+
+      --accent: #0e8f7d;
+      --shadow: rgba(0, 0, 0, 0.12);
+    }
+
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      margin: 0;
+      padding: 0;
+      line-height: 1.5;
+      background: var(--bg-body);
+      color: var(--text-main);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }

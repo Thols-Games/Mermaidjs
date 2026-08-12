@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en" class="theme-teal">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mermaid 11.16.0 — Diagram Explorer</title>
+  <script src="Config.js"></script>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+
+<body>
+  <div class="preview-container">
+    <div class="preview" id="previewCanvas" style="width: 100%; height: 100%; overflow: hidden; position: relative;">
+      <div id="zoomWrap">
+        <div id="target"></div>
+      </div>
+    </div>
+
+    <div class="top-left-actions">
+      <div class="combined-pill">
+        <button class="combined-pill-btn" id="openEditorBtn">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+            stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="4" width="20" height="16" rx="2"></rect>
+            <path d="M2 9h20"></path>
+            <path d="M6 14h4"></path>
+            <path d="M14 11l3 3-3 3"></path>
+          </svg>
+          <span style="font-weight: 600;">Edit Code</span>
+        </button>
+        <div class="combined-pill-sep"></div>
+        <div class="combined-pill-badge" id="diagramTypeBadge">Flowchart</div>
+      </div>
+    </div>
+
+    <div class="top-toolbar">
+      <button class="icon-btn" id="panBtn" title="Pan Tool (Hand)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2" />
+          <path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2" />
+          <path d="M10 10.5V5a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8" />
+          <path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15" />
+        </svg>
+      </button>
+      <button class="icon-btn" id="colorWheelBtn" title="Color Wheel">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"></circle>
+          <path d="M12 2a10 10 0 0 1 10 10"></path>
+        </svg>
+      </button>
+
+      <button class="icon-btn" id="settingsToggleBtn" title="Settings">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path
+            d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
+          </path>
+        </svg>
+      </button>
+    </div>
+
+    <div class="top-right-action" style="display: flex; gap: 0.5rem; align-items: center;">
+      <button class="pill-btn" id="exportMenuBtn"
+        style="padding: 6px 16px; border-radius: 6px; font-weight: 500; font-size: 0.85rem; background: var(--bg-body); color: var(--text-main);">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          style="margin-right: 4px; display: inline-block; vertical-align: middle;">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="17 8 12 3 7 8"></polyline>
+          <line x1="12" y1="3" x2="12" y2="15"></line>
+        </svg>
+        Export
+      </button>
+      <button class="icon-btn" title="Documentation" id="canvasDocsBtn">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+          <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+        </svg>
+      </button>
+    </div>
+
+    <div class="shapes-panel" id="shapesPanel">
+      <div class="shape-category">
+        <div class="shape-category-title">Basic</div>
+        <div class="shape-grid">
+          <div class="shape-item"><svg viewBox="0 0 24 24"><path d="M4 7V4h16v3M9 20h6M12 4v16" /></svg></div>
+          <div class="shape-item"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" /></svg></div>
+          <div class="shape-item"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="6" /></svg></div>
+          <div class="shape-item"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /></svg></div>
+          <div class="shape-item"><svg viewBox="0 0 24 24"><polygon points="12 3 21 21 3 21" /></svg></div>
+          <div class="shape-item"><svg viewBox="0 0 24 24"><polygon points="12 3 21 12 12 21 3 12" /></svg></div>
+          <div class="shape-item"><svg viewBox="0 0 24 24"><path d="M6 3h12l4 9-4 9H6l-4-9 4-9z" /></svg></div>
+          <div class="shape-item"><svg viewBox="0 0 24 24"><path d="M4 6h16v12H4z M4 10h16 M4 14h16" /></svg></div>
+          <div class="shape-item"><svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="7" /></svg></div>
+          <div class="shape-item"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="3" /></svg></div>
+        </div>
+      </div>
+      <div class="shape-category">
+        <div class="shape-category-title">Process</div>
+        <div class="shape-grid">
+          <div class="shape-item"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" /></svg></div>
+          <div class="shape-item"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" /><line x1="8" y1="4" x2="8" y2="20" /></svg></div>
+          <div class="shape-item"><svg viewBox="0 0 24 24"><polygon points="8 4 20 4 16 20 4 20" /></svg></div>
+          <div class="shape-item"><svg viewBox="0 0 24 24"><polygon points="4 4 20 4 16 20 8 20" /></svg></div>
+          <div class="shape-item"><svg viewBox="0 0 24 24"><polygon points="12 4 20 20 4 20" /></svg></div>
+        </div>
+      </div>
+      <div class="shape-category">
+        <div class="shape-category-title">Technical</div>
+        <div class="shape-grid">
+          <div class="shape-item"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="8" ry="3" /><path d="M4 6v12c0 1.66 3.58 3 8 3s8-1.34 8-3V6" /></svg></div>
+          <div class="shape-item"><svg viewBox="0 0 24 24"><path d="M4 6h16v12H4z" /><line x1="8" y1="6" x2="8" y2="18" /></svg></div>
+          <div class="shape-item"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" /><line x1="4" y1="12" x2="20" y2="12" /></svg></div>
+          <div class="shape-item"><svg viewBox="0 0 24 24"><polygon points="12 2 22 12 12 22 2 12" /></svg></div>
+          <div class="shape-item"><svg viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" /></svg></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="theme-panel" id="themePanel">
+      <div class="theme-panel-section">
+        <div class="theme-panel-header">
+          <span>Diagram theme</span>
+          <label class="switch theme-switch">
+            <input type="checkbox" id="diagramThemeToggleBtn" checked>
+            <span class="slider round">
+              <svg class="sun-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="5" />
+                <path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+              </svg>
+            </span>
+          </label>
+        </div>
+        <div class="theme-grid" style="grid-template-columns: repeat(3, 1fr);">
+          <button class="theme-btn" data-theme="default" style="background: #eef6f4; color: #1d4a43;" title="Light">Aa</button>
+          <button class="theme-btn" data-theme="dark" style="background: #1e1e2e; color: #cdd6f4;" title="Default (Dark)">Aa</button>
+          <button class="theme-btn active" data-theme="teal" style="background: #0a1822; color: #d7ece8;" title="Teal Theme">Aa</button>
+        </div>
+      </div>
+
+      <div class="theme-panel-section">
+        <div class="theme-panel-header">Color Palette</div>
+        <div class="palette-grid" style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 0.4rem; margin-bottom: 0.5rem;">
+          <button class="palette-btn active" data-palette="default" style="padding: 0.4rem; border: 1px solid var(--border-element); border-radius: 4px; background: var(--bg-element); color: var(--text-main); font-size: 0.75rem; cursor: pointer;">Default</button>
+          <button class="palette-btn" data-palette="sunset" style="padding: 0.4rem; border: 1px solid var(--border-element); border-radius: 4px; background: var(--bg-element); color: var(--text-main); font-size: 0.75rem; cursor: pointer;">Sunset</button>
+          <button class="palette-btn" data-palette="ocean" style="padding: 0.4rem; border: 1px solid var(--border-element); border-radius: 4px; background: var(--bg-element); color: var(--text-main); font-size: 0.75rem; cursor: pointer;">Ocean</button>
+          <button class="palette-btn" data-palette="forest" style="padding: 0.4rem; border: 1px solid var(--border-element); border-radius: 4px; background: var(--bg-element); color: var(--text-main); font-size: 0.75rem; cursor: pointer;">Forest</button>
+          <button class="palette-btn" data-palette="mono" style="padding: 0.4rem; border: 1px solid var(--border-element); border-radius: 4px; background: var(--bg-element); color: var(--text-main); font-size: 0.75rem; cursor: pointer;">Mono</button>
+        </div>
+        <label style="font-size: 0.8rem; color: var(--text-muted); display: flex; align-items: center; gap: 0.4rem; cursor: pointer;">
+          <input type="checkbox" id="paletteReverseToggle"> Reverse Palette Colors
+        </label>
+      </div>
+
+      <div class="theme-panel-section">
+        <div class="theme-panel-header">Diagram style</div>
+        <div class="style-grid">
+          <button class="style-btn" data-style="sharp"><div class="style-box sharp"></div></button>
+          <button class="style-btn" data-style="rounded"><div class="style-box rounded"></div></button>
+          <button class="style-btn active" data-style="pill"><div class="style-box pill"></div></button>
+        </div>
+      </div>
+
+      <div class="theme-panel-section">
+        <div class="theme-panel-header">Diagram font</div>
+        <div class="font-grid">
+          <button class="font-btn active" data-font="sans">Aa</button>
+          <button class="font-btn" data-font="serif" style="font-family: serif;">Aa</button>
+          <button class="font-btn" data-font="mono" style="font-family: monospace;">Aa</button>
+          <button class="font-btn" data-font="comic" style="font-family: 'Comic Sans MS', cursive;">Aa</button>
+          <button class="font-btn" data-font="system" style="font-family: system-ui;">Aa</button>
+        </div>
+      </div>
+
+      <div class="theme-panel-section">
+        <div class="theme-panel-header">Line thickness</div>
+        <div class="style-grid" style="align-items: center;">
+          <button class="thickness-btn" data-thickness="1" title="Thin"><div style="width: 22px; height: 1px; background: currentColor;"></div></button>
+          <button class="thickness-btn active" data-thickness="2" title="Medium"><div style="width: 22px; height: 2px; background: currentColor;"></div></button>
+          <button class="thickness-btn" data-thickness="4" title="Thick"><div style="width: 22px; height: 4px; background: currentColor;"></div></button>
+          <input type="range" id="diagramThicknessSlider" min="1" max="10" value="2" style="flex: 1; margin-left: 1rem; cursor: pointer;">
+        </div>
+      </div>
+
+      <div class="theme-panel-section">
+        <div class="theme-panel-header">Number color</div>
+        <div style="display: flex; gap: 0.5rem; align-items: center; margin-top: 0.5rem;">
+          <input type="color" id="numberColorPicker" value="#ffffff" disabled title="Text Color" style="cursor: pointer; padding: 0; border: none; width: 32px; height: 32px; background: transparent; opacity: 0.5;">
+          <input type="color" id="circleColorPicker" value="#000000" disabled title="Circle Color" style="cursor: pointer; padding: 0; border: none; width: 32px; height: 32px; background: transparent; opacity: 0.5;">
+          <label style="font-size: 0.85rem; color: var(--text-muted); display: flex; align-items: center; gap: 0.4rem; cursor: pointer;">
+            <input type="checkbox" id="syncNumberColor" checked>
+            Sync with Actor
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-panel" id="settingsPanel">
+      <label>Diagram Type <select class="setting-btn" id="diagramType"></select></label>
+      <label>Theme
+        <select class="setting-btn" id="theme">
+          <option value="teal" selected>Teal Theme</option>
+          <option value="dark">Default (Dark)</option>
+          <option value="default">Light</option>
+        </select>
+      </label>
+      <label>Syntax
+        <select class="setting-btn" id="hlMode">
+          <option value="off">Off</option>
+          <option value="local" selected>Local (regex)</option>
+        </select>
+      </label>
+      <div class="settings-row">
+        <button class="setting-btn" id="renderBtn">Render</button>
+        <button class="setting-btn" id="resetBtn">Reset</button>
+      </div>
+    </div>
+
+    <div class="ai-action-bar">
+      <button class="ai-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg> Use Voice</button>
+    </div>
+  </div>
+
+  <div class="editor-panel" id="sourceCol">
+    <div class="editor-resize-handle" id="editorResizeHandle"></div>
+    <header class="ide-header">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div style="font-size: 0.95rem; font-weight: 600; color: var(--text-main); display: flex; align-items: center; gap: 6px; padding-left: 4px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="16 18 22 12 16 6"></polyline>
+            <polyline points="8 6 2 12 8 18"></polyline>
+          </svg>
+          Code
+        </div>
+        <button class="icon-btn" title="Close" id="toggleSrcBtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 0.25rem; border-top: 1px solid var(--border-color);">
+        <div class="ide-header-left" style="display: flex; align-items: center;">
+          <button class="pill-btn" id="validateBtn" style="padding: 6px 12px; font-size: 0.88rem; font-weight: 600; border-radius: 6px; display: inline-flex; align-items: center; gap: 5px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+              <polyline points="22 4 12 14.01 9 11.01"></polyline>
+            </svg>
+            Validate
+          </button>
+          <button class="pill-btn" id="fixBtn" style="padding: 6px 12px; font-size: 0.88rem; font-weight: 600; margin-left: 8px; border-radius: 6px; display: none; align-items: center; gap: 5px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M12 20h9"></path>
+              <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+            </svg>
+            Auto-Fix
+          </button>
+        </div>
+        <div class="ide-header-right">
+          <label class="header-toggle">
+            <label class="switch">
+              <input type="checkbox" id="autoUpdateToggle" checked>
+              <span class="slider"></span>
+            </label>
+            Auto-Update
+          </label>
+          <button class="pill-btn" id="autoAlignBtn" style="padding: 4px 10px; font-size: 0.88rem; font-weight: 600; margin-left: 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 5px; background: transparent; border: 1px solid var(--border-color); color: var(--text-main); cursor: pointer;" title="Auto-Align Code">
+            <svg width="14" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5">
+              <line x1="3" y1="3" x2="21" y2="3"></line>
+              <line x1="3" y1="9" x2="15" y2="9"></line>
+              <line x1="3" y1="15" x2="21" y2="15"></line>
+              <line x1="3" y1="21" x2="15" y2="21"></line>
+            </svg>
+            Auto-Align
+          </button>
+          <button class="icon-btn" title="Copy Code" id="copyBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+          </button>
+          <div style="position: relative;">
+            <button class="icon-btn" title="Text Size" id="textSizeBtn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="4 7 4 4 20 4 20 7"></polyline>
+                <line x1="9" y1="20" x2="15" y2="20"></line>
+                <line x1="12" y1="4" x2="12" y2="20"></line>
+              </svg>
+            </button>
+            <div id="textSizePopup" style="display: none; position: absolute; top: 100%; right: 0; background: var(--bg-body); border: 1px solid var(--border-color); padding: 8px 12px; border-radius: 6px; box-shadow: 0 4px 12px var(--shadow); z-index: 100; min-width: 120px;">
+              <div style="margin-bottom: 4px; font-size: 0.8rem; color: var(--text-muted);">Font Size</div>
+              <input type="range" id="textSizeSlider" min="10" max="24" value="13" style="width: 100%; cursor: pointer;">
+            </div>
+          </div>
+          <button class="icon-btn" title="Clear Code" id="clearBtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
+        </div>
+      </div>
+    </header>
+
+    <div class="editor-body">
+      <div class="gutter" id="gutter" aria-hidden="true"></div>
+      <div class="textarea-wrap" id="textareaWrap">
+        <textarea id="source" spellcheck="false" aria-label="Mermaid source code"></textarea>
+        <div id="hlLayer" class="hl-layer" aria-hidden="true"></div>
+        <div class="autocomplete-panel" id="autocompletePanel"></div>
+      </div>
+    </div>
+
+    <div class="editor-error-bar" id="editorErrorBar" style="display: none;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink: 0; margin-top: 2px;">
+        <circle cx="12" cy="12" r="10"></circle>
+        <line x1="12" y1="8" x2="12" y2="12"></line>
+        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+      </svg>
+      <span id="editorErrorText" style="flex: 1; word-break: break-word;"></span>
+    </div>
+
+    <div class="snippets-container" id="snippetsContainer">
+      <div class="snippets-header" id="snippetsBtn">
+        <div class="left-side">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+          </svg>
+          <span>Snippets</span>
+        </div>
+        <div class="right-side">
+          <button class="icon-btn"><svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"></polyline></svg></button>
+        </div>
+      </div>
+      <div class="snippets-panel" id="snippetsPanel"></div>
+    </div>
+  </div>
+
+  <div class="zoom-controls">
+    <button id="prevDiagramBtn" title="Previous diagram"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg></button>
+    <button id="nextDiagramBtn" title="Next diagram"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg></button>
+    <div class="separator"></div>
+    <button id="zoomOutBtn" title="Zoom out"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg></button>
+    <button id="zoomInBtn" title="Zoom in"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg></button>
+    <button id="zoomFitBtn" title="Fit to screen"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"></path><path d="M9 21H3v-6"></path><path d="M21 3l-7 7"></path><path d="M3 21l7-7"></path></svg></button>
+    <button id="fullscreenBtn" title="Fullscreen mode"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg></button>
+  </div>
+
+  <!-- Export Modal -->
+  <div class="export-modal-overlay" id="exportModalOverlay" style="display: none;">
+    <div class="export-modal">
+      <div class="export-modal-header">
+        <h2>Export Diagram</h2>
+        <button class="icon-btn" id="exportCloseBtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+      </div>
+
+      <div class="export-modal-body">
+        <div class="export-modal-left">
+          <div class="export-section">
+            <h3>Format</h3>
+            <div class="format-list">
+              <label class="format-option active">
+                <input type="radio" name="exportFormat" value="png" checked>
+                <div>
+                  <div class="format-title">PNG Image</div>
+                  <div class="format-desc">Best for sharing & docs</div>
+                </div>
+              </label>
+              <label class="format-option">
+                <input type="radio" name="exportFormat" value="svg">
+                <div>
+                  <div class="format-title">SVG Vector</div>
+                  <div class="format-desc">Scalable vector graphic</div>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <div class="export-section">
+            <h3>Background</h3>
+            <div class="bg-color-options">
+              <div class="bg-swatch active transparent-swatch" data-bg="transparent" title="Transparent"></div>
+              <div class="bg-swatch" data-bg="#ffffff" style="background: #ffffff;" title="White"></div>
+              <div class="bg-swatch" data-bg="#1e1e2e" style="background: #1e1e2e;" title="Dark"></div>
+            </div>
+          </div>
+
+          <div class="export-share-box">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink: 0; margin-top: 2px;">
+              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+            </svg>
+            <span><a href="#">Share your diagram</a> directly instead. No account required for viewers.</span>
+          </div>
+        </div>
+
+        <div class="export-modal-right">
+          <h3>Preview</h3>
+          <div class="export-preview-box" id="exportPreviewBox"></div>
+        </div>
+      </div>
+
+      <div class="export-modal-footer">
+        <button class="export-btn-cancel" id="exportCancelBtn">Cancel</button>
+        <button class="export-btn-confirm" id="exportConfirmBtn">Export</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+
+</html>

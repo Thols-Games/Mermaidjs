@@ -1,0 +1,166 @@
+    /* ---- Autocomplete Panel ---- */
+    .autocomplete-panel {
+      position: absolute;
+      top: 1.25rem;
+      left: 1rem;
+      background: var(--bg-body);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      box-shadow: 0 4px 12px var(--shadow);
+      z-index: 10;
+      display: none;
+      flex-direction: column;
+      max-height: 250px;
+      overflow-y: auto;
+      min-width: 250px;
+      padding: 4px 0;
+    }
+
+    .autocomplete-panel.show {
+      display: flex;
+    }
+
+    .ac-item {
+      padding: 0.35rem 1rem;
+      cursor: pointer;
+      color: var(--text-main);
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: background 0.1s;
+    }
+
+    .ac-item:hover,
+    .ac-item.selected {
+      background: #2563eb;
+      color: #ffffff;
+    }
+
+    .ac-item svg {
+      width: 14px;
+      height: 14px;
+      opacity: 0.8;
+    }
+
+    .ac-item:hover svg,
+    .ac-item.selected svg {
+      opacity: 1;
+    }
+
+    /* ---- Syntax Highlighting ---- */
+    .textarea-wrap {
+      flex: 1 1 auto;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .hl-layer {
+      display: none;
+      position: absolute;
+      inset: 0;
+      padding: .6rem;
+      font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+      font-size: var(--editor-font-size, 13.12px);
+      line-height: 20px;
+      tab-size: 2;
+      white-space: pre;
+      overflow: scroll;
+      pointer-events: none;
+      z-index: 0;
+      background: var(--bg-editor);
+      color: var(--text-main);
+      scrollbar-width: none;
+    }
+
+    .hl-layer::-webkit-scrollbar {
+      display: none;
+    }
+
+    textarea.hl-on {
+      position: relative;
+      z-index: 1;
+      background: transparent !important;
+      color: transparent !important;
+      caret-color: #8b7ff0;
+      /* PALETTE[0] — overridden by injectHLPaletteColors */
+      resize: none;
+    }
+
+    /* Token colours — injected from PALETTE by JS (see injectHLPaletteColors below) */
+    /* CodeMirror 6 host */
+    .cm-host {
+      flex: 1 1 auto;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .cm-color-square {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border: 1px solid var(--border-main);
+      margin-right: 4px;
+      vertical-align: middle;
+      cursor: pointer;
+      position: relative;
+      border-radius: 2px;
+      top: -1px; /* visual tweak to perfectly center with text */
+    }
+
+    .cm-color-square input[type="color"] {
+      opacity: 0;
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      cursor: pointer;
+      padding: 0;
+      border: none;
+    }
+
+    .cm-host .cm-editor {
+      flex: 1;
+      min-height: 0;
+      font-size: var(--editor-font-size, 13.12px) !important;
+    }
+
+    .cm-host .cm-scroller {
+      font-family: ui-monospace, "SFMono-Regular", Consolas, monospace !important;
+      overflow: auto !important;
+      min-height: 0;
+    }
+
+    /* CDN loading indicator */
+    .hl-loading {
+      flex: 1;
+      min-height: 120px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: .5rem;
+      color: #888;
+      font-size: .85rem;
+    }
+
+    @keyframes hl-spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .hl-spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid #555;
+      border-top-color: #9370DB;
+      border-radius: 50%;
+      animation: hl-spin .7s linear infinite;
+      flex-shrink: 0;
+    }
