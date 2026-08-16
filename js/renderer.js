@@ -5,8 +5,8 @@
 
 import mermaid from '../mermaid-11.16.0/package/dist/mermaid.esm.min.mjs';
 import { clearEditorError, checkSequenceDiagramWarnings, showEditorError, showEditorWarnings, buildAliasColorMap } from './editor.js';
-import { resetZoom } from './zoom-pan.js';
-import { getSeqPalette, getFlowPalette, badgeTint, withAlpha } from './palettes.js';
+import { applyDiagramZoom } from './zoom-pan.js';
+import { getSeqPalette, getFlowPalette, badgeTint, withAlpha, currentPaletteName, isPaletteReversed } from './palettes.js';
 import { setInline } from './dom.js';
 
 export let lastRenderedSrc = '';
@@ -35,16 +35,6 @@ export function getSequenceMessageColors(sourceText, seqPalette) {
 
 function currentSvg() {
   return document.querySelector('#target svg');
-}
-
-export function currentPaletteName() {
-  const activeBtn = document.querySelector('.palette-btn.active');
-  return activeBtn ? activeBtn.getAttribute('data-palette') : 'default';
-}
-
-export function isPaletteReversed() {
-  const toggle = document.getElementById('paletteReverseToggle');
-  return toggle ? toggle.checked : false;
 }
 
 export function isDarkFamily() {
@@ -314,7 +304,7 @@ export async function renderOne(text) {
 
   if ((text || '').trim() === '') {
     if (btnRender) btnRender.classList.remove('rendered');
-    elTarget.removeAttribute('data-processed');
+    elTarget.setAttribute('data-processed', 'empty');
     elTarget.innerHTML = `<div style="padding:2rem;color:var(--text-muted);text-align:center;display:flex;flex-direction:column;align-items:center;">
       <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" style="margin-bottom:1rem;opacity:0.5;"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
       Start typing to create a diagram, or choose a snippet.</div>`;
@@ -331,7 +321,7 @@ export async function renderOne(text) {
     const isValid = await mermaid.parse(text);
     if (isValid === false) return;
     await mermaid.run({ nodes: [elTarget], suppressErrors: false });
-    resetZoom();
+    applyDiagramZoom();
 
     const mySeq = ++renderSeq;
     const applyColors = () => {
@@ -355,5 +345,34 @@ export async function renderOne(text) {
   } catch (e) {
     console.error('renderOne error:', e);
     showEditorError(e);
+    applyDiagramZoom();
+
+    elTarget.setAttribute('data-processed', 'error');
+    elTarget.innerHTML = `
+      <div class="render-error-container" style="
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        padding: 2rem;
+        max-width: 500px;
+        margin: 2rem auto;
+        box-sizing: border-box;
+      ">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#e2795b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 1rem;">
+          <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
+          <line x1="12" y1="9" x2="12" y2="13"/>
+          <line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+        <h3 style="margin: 0 0 0.75rem 0; color: #e2795b; font-family: system-ui, sans-serif; font-size: 1.15rem; font-weight: 600;">Diagram Parsing Error</h3>
+        <p style="margin: 0; color: var(--text-muted); font-size: 0.85rem; font-family: system-ui, sans-serif; line-height: 1.4;">
+          Check the red indicators in the gutter or click <strong>Auto-Fix</strong> to repair.
+        </p>
+      </div>
+    `;
   }
+}
+
+if (typeof window !== 'undefined') {
+  window.renderOne = renderOne;
 }

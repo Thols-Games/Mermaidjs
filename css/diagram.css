@@ -1,0 +1,10 @@
+#target {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#target:not([data-processed]) {
+  color: transparent !important;
+  opacity: 0 !important;
+}

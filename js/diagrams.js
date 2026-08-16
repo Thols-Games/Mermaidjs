@@ -2,9 +2,8 @@
  * Single source of truth for the example diagrams shown in the
  * diagram-type dropdown and the snippets/autocomplete panels.
  *
- * Previously this object was duplicated inline in index.html (and the now-deleted
- * js/globals.js). It lives here so there is exactly
- * one copy to maintain.
+ * Previously this object was duplicated inline in index.html. It lives here so
+ * there is exactly one copy to maintain.
  *
  * Both the ES module `DIAGRAMS` export and `window.DIAGRAMS` are provided so
  * that existing inline `<script type="module">` blocks can import it and any

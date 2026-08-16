@@ -1,6 +1,6 @@
 /**
- * Shared, document-independent helpers used by both index.html and
- * Diagram.html (and previously duplicated inline in each).
+ * Shared, document-independent helpers used by index.html (and previously
+ * duplicated inline).
  *
  * Extracted in Phase 2. These functions do NOT depend on any
  * module-scoped DOM reference (e.g. `elTarget`/`currentSvg`), so they are safe

@@ -153,10 +153,26 @@ export function getFlowPalette(name = 'default', isReversed = false) {
   return isReversed ? list.reverse() : list;
 }
 
+// ─── Palette state accessors ────────────────────────────────────────────────
+// Hosted here (a dependency-free leaf module) so neither editor.js nor
+// renderer.js needs to import the other solely to read the active palette —
+// this breaks the editor.js ⇄ renderer.js circular import.
+export function currentPaletteName() {
+  const selectEl = document.getElementById('colorPaletteSelect');
+  return selectEl ? selectEl.value : 'default';
+}
+
+export function isPaletteReversed() {
+  const toggle = document.getElementById('paletteReverseToggle');
+  return toggle ? toggle.checked : false;
+}
+
 if (typeof window !== 'undefined') {
   window.PALETTES = PALETTES;
   window.withAlpha = withAlpha;
   window.badgeTint = badgeTint;
   window.getSeqPalette = getSeqPalette;
   window.getFlowPalette = getFlowPalette;
+  window.currentPaletteName = currentPaletteName;
+  window.isPaletteReversed = isPaletteReversed;
 }

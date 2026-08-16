@@ -56,28 +56,33 @@
       display: flex;
       flex-direction: column;
       min-height: 0;
+      background: var(--bg-editor);
     }
 
     .hl-layer {
       display: none;
       position: absolute;
       inset: 0;
-      padding: .6rem;
       font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
       font-size: var(--editor-font-size, 13.12px);
-      line-height: 20px;
+      line-height: var(--editor-line-height, 20px);
       tab-size: 2;
       white-space: pre;
-      overflow: scroll;
+      /* Non-scrolling viewport: the line content lives in .hl-content, which is
+         translated by the textarea's exact scroll pixels. This keeps the
+         highlight locked to the text at every scroll position, independent of
+         scrollbar geometry (the textarea reserves scrollbar space; the overlay
+         must not, so we never sync two scroll containers by raw scrollTop). */
+      overflow: hidden;
       pointer-events: none;
-      z-index: 0;
-      background: var(--bg-editor);
+      z-index: 2;
+      background: transparent !important;
       color: var(--text-main);
-      scrollbar-width: none;
     }
 
-    .hl-layer::-webkit-scrollbar {
-      display: none;
+    .hl-content {
+      padding: .6rem 1.3rem;
+      will-change: transform;
     }
 
     textarea.hl-on {
@@ -110,7 +115,8 @@
       cursor: pointer;
       position: relative;
       border-radius: 2px;
-      top: -1px; /* visual tweak to perfectly center with text */
+      top: -1px;
+      /* visual tweak to perfectly center with text */
     }
 
     .cm-color-square input[type="color"] {
@@ -163,4 +169,212 @@
       border-radius: 50%;
       animation: hl-spin .7s linear infinite;
       flex-shrink: 0;
+    }
+
+
+    /* ---- Editor Container & Layout ---- */
+    :root {
+      --editor-line-height: calc(var(--editor-font-size, 13.12px) * 1.5);
+    }
+
+    .editor-panel {
+      position: absolute;
+      top: 1rem;
+      left: 1rem;
+      bottom: 1rem;
+      width: 35vw;
+      min-width: 35vw;
+      max-width: 60vw;
+      background: var(--bg-body);
+      border-radius: 12px;
+      box-shadow: 0 8px 32px var(--shadow);
+      border: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      z-index: 100;
+    }
+
+    @media (max-width: 720px) {
+      .editor-panel {
+        display: none;
+      }
+    }
+
+    .editor-resize-handle {
+      position: absolute;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      width: 6px;
+      cursor: ew-resize;
+      z-index: 100;
+      background: transparent;
+      transition: background 0.2s;
+    }
+
+    .editor-resize-handle:hover,
+    .editor-resize-handle.dragging {
+      background: var(--accent);
+      opacity: 0.5;
+    }
+
+    .editor-body {
+      display: flex;
+      flex: 1;
+      border: none;
+      background: var(--bg-editor);
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    /* ---- Editor Gutter & Error Indicators ---- */
+    .gutter {
+      flex: 0 0 auto;
+      width: 2.5em;
+      padding: .6rem .4rem .6rem .2rem;
+      text-align: right;
+      font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+      font-size: var(--editor-font-size, 13.12px);
+      line-height: var(--editor-line-height, 20px);
+      color: var(--text-gutter);
+      user-select: none;
+      overflow: hidden;
+      white-space: nowrap;
+      background: var(--bg-gutter);
+      border-right: 1px solid var(--border-color);
+    }
+
+    .gutter span {
+      display: block;
+      height: var(--editor-line-height, 20px);
+      line-height: var(--editor-line-height, 20px);
+      box-sizing: border-box;
+    }
+
+    .gutter-error-line {
+      color: #ff3333 !important;
+      font-weight: 900 !important;
+      background: rgba(255, 51, 51, 0.25) !important;
+      border-radius: 3px !important;
+      display: block !important;
+      width: 100% !important;
+      height: var(--editor-line-height, 20px) !important;
+      line-height: var(--editor-line-height, 20px) !important;
+      box-sizing: border-box !important;
+      box-shadow: 0 0 8px rgba(255, 51, 51, 0.4) !important;
+    }
+
+    .gutter-warning-line {
+      color: #f59e0b !important;
+      font-weight: 900 !important;
+      background: rgba(245, 158, 11, 0.25) !important;
+      border-radius: 3px !important;
+      display: block !important;
+      width: 100% !important;
+      height: var(--editor-line-height, 20px) !important;
+      line-height: var(--editor-line-height, 20px) !important;
+      box-sizing: border-box !important;
+      box-shadow: 0 0 8px rgba(245, 158, 11, 0.4) !important;
+    }
+
+    .editor-error-bar {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 0.6rem 0.8rem;
+      background: rgba(239, 68, 68, 0.15);
+      border-top: 1px solid rgba(239, 68, 68, 0.3);
+      color: #f87171;
+      font-size: 0.82rem;
+      line-height: 1.4;
+      flex-shrink: 0;
+      max-height: 90px;
+      overflow-y: auto;
+    }
+
+    .editor-error-bar.warning-mode {
+      background: rgba(245, 158, 11, 0.15) !important;
+      border-top: 1px solid rgba(245, 158, 11, 0.3) !important;
+      color: #fbbf24 !important;
+    }
+
+    #textareaActiveBg {
+      position: absolute;
+      left: 0;
+      right: 0;
+      /* top/height are set in px by updateTextareaActiveBg() from the textarea's
+         real computed metrics; this is only a pre-JS fallback. */
+      top: 0;
+      height: var(--editor-line-height, 20px);
+      background: color-mix(in srgb, var(--accent, #4fd1c5) 15%, transparent);
+      border-left: 3px solid var(--accent, #4fd1c5);
+      pointer-events: none;
+      z-index: 1;
+      border-radius: 0 3px 3px 0;
+      box-sizing: border-box;
+    }
+
+    /* ---- Syntax Highlight Line Helpers ---- */
+    .hl-line {
+      display: block;
+      height: var(--editor-line-height, 20px);
+      line-height: var(--editor-line-height, 20px);
+      box-sizing: border-box;
+      white-space: pre;
+      width: 100%;
+      position: relative;
+    }
+
+    .hl-line.hl-error-line {
+      background: rgba(226, 121, 91, 0.25);
+      border-radius: 2px;
+    }
+
+    /* ---- Inline RGB colour picker ---- */
+    .hl-rgb-wrapper {
+      display: inline;
+      position: static;
+    }
+
+    .hl-rgb-text {
+      display: inline;
+    }
+
+    /* Zero-width container so the picker takes no horizontal space in the text flow.
+       The picker itself is positioned in the line's left gutter (resolved against
+       .hl-line) so it never overlaps code. */
+    .inline-color-picker-slot {
+      display: inline-block;
+      width: 0;
+      overflow: visible;
+      vertical-align: baseline;
+      position: static;
+    }
+
+    .inline-color-picker {
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      appearance: none;
+      position: absolute;
+      left: 0;
+      top: 50%;
+      transform: translate(-100%, -50%);
+      width: 12px;
+      height: 12px;
+      border: 1px solid var(--border-color, #444);
+      border-radius: 3px;
+      background: none;
+      cursor: pointer;
+      padding: 0;
+      pointer-events: auto;
+    }
+
+    .inline-color-picker::-webkit-color-swatch-wrapper {
+      padding: 0;
+    }
+
+    .inline-color-picker::-webkit-color-swatch {
+      border: none;
+      border-radius: 2px;
     }

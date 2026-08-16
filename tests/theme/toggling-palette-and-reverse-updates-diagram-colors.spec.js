@@ -11,16 +11,17 @@ test.describe('Theme & Palette', () => {
     const previewFrame = page;
     await expect(previewFrame.locator('#target svg')).toBeVisible({ timeout: 10000 });
     
-    // Open Settings panel
-    await page.locator('#settingsToggleBtn').click();
+    // Open Theme panel (Color Wheel)
+    await page.locator('#colorWheelBtn').click();
     
-    // Click 'sunset' palette
-    await page.locator('.palette-btn[data-palette="sunset"]').dispatchEvent('click');
+    // Select 'sunset' palette from dropdown
+    const select = page.locator('#colorPaletteSelect');
+    await select.selectOption('sunset');
     
-    await expect(page.locator('.palette-btn[data-palette="sunset"]')).toHaveClass(/active/);
+    await expect(select).toHaveValue('sunset');
     await expect(previewFrame.locator('#target svg')).toBeVisible();
   });
-
+ 
   test('toggling reverse palette updates diagram colors', async ({ page }) => {
     await page.goto('/');
     const editor = page.locator('#source');
@@ -30,11 +31,11 @@ test.describe('Theme & Palette', () => {
     const previewFrame = page;
     await expect(previewFrame.locator('#target svg')).toBeVisible({ timeout: 10000 });
     
-    // Open Settings panel
-    await page.locator('#settingsToggleBtn').click();
+    // Open Theme panel (Color Wheel)
+    await page.locator('#colorWheelBtn').click();
     
     // Toggle `#paletteReverseToggle`
-    await page.locator('#paletteReverseToggle').dispatchEvent('click');
+    await page.locator('#paletteReverseToggle').click();
     
     await expect(previewFrame.locator('#target svg')).toBeVisible();
   });
