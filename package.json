@@ -22,7 +22,7 @@
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",
-    "@codemirror/commands": "^6.10.4",
+    "@codemirror/commands": "^6.11.0",
     "@codemirror/lang-css": "^6.3.1",
     "@codemirror/lang-html": "^6.4.12",
     "@codemirror/lang-javascript": "^6.2.5",
@@ -34,10 +34,10 @@
     "@codemirror/lint": "^6.9.7",
     "@codemirror/search": "^6.7.1",
     "@codemirror/state": "^6.7.1",
-    "@codemirror/view": "^6.43.8",
+    "@codemirror/view": "^6.43.9",
     "@lezer/highlight": "^1.2.3",
     "acorn": "^8.18.0",
-    "magic-string": "^1.1.0",
-    "puppeteer": "^25.4.0"
+    "magic-string": "^1.2.1",
+    "puppeteer": "^25.8.0"
   }
 }
