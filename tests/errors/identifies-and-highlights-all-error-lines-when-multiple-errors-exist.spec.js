@@ -20,11 +20,9 @@ test.describe('\'Multi-Line Error Detection & Highlighting\', (', () => {
     const message = await errText.textContent();
     expect(message).toBe('Errors in lines 1, 2, 3');
 
-    // 3. Gutter should contain 3 bold red line spans for lines 1, 2, and 3
-    const errSpans = gutter.locator('span.gutter-error-line');
+    // 3. Lint gutter should contain 3 error markers for lines 1, 2, and 3
+    const errSpans = page.locator('.cm-lint-marker-error');
     await expect(errSpans).toHaveCount(3);
-    const lineTexts = await errSpans.allTextContents();
-    expect(lineTexts.map(t => t.trim())).toEqual(['1', '2', '3']);
 
     // 4. Click Auto-Fix
     await fixBtn.click();

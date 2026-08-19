@@ -39,7 +39,12 @@ const server = http.createServer((req, res) => {
         return;
       }
       const ext = path.extname(filePath).toLowerCase();
-      res.writeHead(200, { 'Content-Type': TYPES[ext] || 'application/octet-stream' });
+      // no-cache so edited JS/CSS modules are re-fetched during development
+      // instead of serving a stale cached copy.
+      res.writeHead(200, {
+        'Content-Type': TYPES[ext] || 'application/octet-stream',
+        'Cache-Control': 'no-cache',
+      });
       fs.createReadStream(filePath).pipe(res);
     });
   } catch (e) {

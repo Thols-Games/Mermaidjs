@@ -13,5 +13,9 @@ mermaid-11.16.0.tar
 # Local dev artifacts
 /scratch/
 /screenshots/
+*.png
 console.log
 corrected_sequence.txt
+.agents/
+.kilo/
+tests/_tmp/

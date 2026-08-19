@@ -96,20 +96,27 @@
     }
 
     /* Token colours — injected from PALETTE by JS (see injectHLPaletteColors below) */
-    /* CodeMirror 6 host */
+    /* CodeMirror 6 host (Primary editor) */
     .cm-host {
-      flex: 1 1 auto;
+      position: absolute;
+      inset: 0;
       overflow: hidden;
-      display: flex;
-      flex-direction: column;
-      min-height: 0;
+      z-index: 5;
+    }
+
+    .cm-host > .cm-editor {
+      height: 100%;
+    }
+
+    .cm-host .cm-editor {
+      height: 100%;
     }
 
     .cm-color-square {
       display: inline-block;
       width: 12px;
       height: 12px;
-      border: 1px solid var(--border-main);
+      border: 1px solid var(--border-main, #555);
       margin-right: 4px;
       vertical-align: middle;
       cursor: pointer;
@@ -117,6 +124,14 @@
       border-radius: 2px;
       top: -1px;
       /* visual tweak to perfectly center with text */
+    }
+
+    .cm-host .cm-rgb {
+      font-weight: 600;
+    }
+
+    .cm-host .cm-alias {
+      /* inline style carries the palette color + bold; class kept for clarity */
     }
 
     .cm-color-square input[type="color"] {

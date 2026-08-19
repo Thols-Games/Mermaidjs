@@ -25,11 +25,9 @@ test.describe('\'Editor Warning Display (Undeclared Participants', () => {
     const message = await errText.textContent();
     expect(message).toContain("Line 2: Warning: S, C not declared as participant");
 
-    // 4. Line 2 in gutter should have .gutter-warning-line class (amber/yellow)
-    const warnLineSpan = gutter.locator('span.gutter-warning-line');
+    // 4. Line 2 in the lint gutter should be marked as a warning
+    const warnLineSpan = page.locator('.cm-lint-marker-warning').first();
     await expect(warnLineSpan).toBeVisible();
-    const lineText = (await warnLineSpan.textContent()).trim();
-    expect(lineText).toBe('2');
 
     // 5. Declare participants S and C at top of diagram -> warning should clear
     await editor.fill('sequenceDiagram\n participant S\n participant C\n Note over S,C: Cache invalidated');

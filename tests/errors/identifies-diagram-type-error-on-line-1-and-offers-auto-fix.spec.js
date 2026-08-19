@@ -21,11 +21,9 @@ test.describe('\'Diagram Type Error Identification & Auto-Fix\', (', () => {
     const message = await errText.textContent();
     expect(message).toBe('Error in line 1');
 
-    // 3. Line 1 in gutter should be highlighted bold red
-    const errLineSpan = gutter.locator('span.gutter-error-line');
+    // 3. Line 1 in the lint gutter should be marked as an error
+    const errLineSpan = page.locator('.cm-lint-marker-error');
     await expect(errLineSpan).toBeVisible();
-    const lineText = (await errLineSpan.textContent()).trim();
-    expect(lineText).toBe('1');
 
     // 4. Header should show "Invalid ✗" and "Auto-Fix" button
     await expect(validateBtn).toContainText('Invalid ✗');

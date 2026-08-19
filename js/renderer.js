@@ -9,6 +9,60 @@ import { applyDiagramZoom } from './zoom-pan.js';
 import { getSeqPalette, getFlowPalette, badgeTint, withAlpha, currentPaletteName, isPaletteReversed } from './palettes.js';
 import { setInline } from './dom.js';
 
+let currentMermaidTheme = 'dark';
+
+// Maps a sequence layout config key to its UI control id + value type.
+const SEQUENCE_LAYOUT_CONTROLS = {
+  diagramMarginX: { id: 'seqDiagramMarginX', type: 'number' },
+  diagramMarginY: { id: 'seqDiagramMarginY', type: 'number' },
+  actorMargin: { id: 'seqActorMargin', type: 'number' },
+  messageMargin: { id: 'seqMessageMargin', type: 'number' },
+  noteMargin: { id: 'seqNoteMargin', type: 'number' },
+  boxTextMargin: { id: 'seqBoxTextMargin', type: 'number' },
+  bottomMarginAdj: { id: 'seqBottomMarginAdj', type: 'number' },
+  messageAlign: { id: 'seqMessageAlign', type: 'string' },
+  mirrorActors: { id: 'seqMirrorActors', type: 'checkbox' },
+  wrap: { id: 'seqWrap', type: 'checkbox' },
+  rightAngles: { id: 'seqRightAngles', type: 'checkbox' }
+};
+
+export function getSequenceLayoutConfig() {
+  const config = {};
+  for (const [key, spec] of Object.entries(SEQUENCE_LAYOUT_CONTROLS)) {
+    const el = document.getElementById(spec.id);
+    if (!el) continue;
+    if (spec.type === 'number') {
+      const n = Number(el.value);
+      if (!Number.isNaN(n)) config[key] = n;
+    } else if (spec.type === 'checkbox') {
+      config[key] = el.checked;
+    } else {
+      config[key] = el.value;
+    }
+  }
+  return config;
+}
+
+export async function applyMermaidConfig(autonumber, mermaidTheme) {
+  currentMermaidTheme = mermaidTheme;
+  const layout = getSequenceLayoutConfig();
+  await mermaid.initialize({
+    startOnLoad: false,
+    theme: mermaidTheme,
+    securityLevel: 'strict',
+    sequence: { showSequenceNumbers: !!autonumber, ...layout }
+  });
+}
+
+export function reapplyMermaidConfig(autonumber) {
+  return applyMermaidConfig(autonumber, currentMermaidTheme);
+}
+
+export function getAutonumberConfig() {
+  const btn = document.getElementById('diagramAutonumberToggleBtn');
+  return btn ? btn.checked : false;
+}
+
 export let lastRenderedSrc = '';
 export let renderSeq = 0;
 
@@ -166,22 +220,99 @@ export function colorizeDiagram() {
   return true;
 }
 
+function elViewportBox(el) {
+  const b = el.getBBox();
+  const ctm = el.getCTM();
+  if (!ctm) return null;
+  const pts = [
+    [b.x, b.y], [b.x + b.width, b.y],
+    [b.x, b.y + b.height], [b.x + b.width, b.y + b.height]
+  ].map(([x, y]) => ({ x: ctm.a * x + ctm.c * y + ctm.e, y: ctm.b * x + ctm.d * y + ctm.f }));
+  const xs = pts.map(p => p.x), ys = pts.map(p => p.y);
+  return { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
+}
+
+function distanceToBox(px, py, box) {
+  const cx = Math.max(box.x, Math.min(px, box.x + box.w));
+  const cy = Math.max(box.y, Math.min(py, box.y + box.h));
+  return Math.hypot(px - cx, py - cy);
+}
+
+function pathStartPoint(pathEl) {
+  const d = pathEl.getAttribute('d') || '';
+  const m = d.match(/M\s*([-\d.]+)[ ,]+([-\d.]+)/i);
+  if (!m) return null;
+  const x = parseFloat(m[1]), y = parseFloat(m[2]);
+  const ctm = pathEl.getCTM();
+  if (!ctm) return null;
+  return { x: ctm.a * x + ctm.c * y + ctm.e, y: ctm.b * x + ctm.d * y + ctm.f };
+}
+
 export function colorizeFlowchart() {
   const svg = currentSvg();
   if (!svg) return false;
-  const nodes = svg.querySelectorAll('g.node');
+  const elSrc = document.getElementById('source');
+  const srcCode = elSrc ? elSrc.value.trim().replace(/^---[\s\S]*?---\s*/, '') : '';
+  const isFlowchart = svg.classList.contains('flowchart') || /^(flowchart|graph)\b/i.test(srcCode);
+  const isState = svg.classList.contains('statediagram') || /^stateDiagram\b/i.test(srcCode);
+  const isDiagram = isFlowchart || isState;
+  const nodeSelector = isState ? 'g.stateGroup' : 'g.node';
+
+  const nodes = svg.querySelectorAll(nodeSelector);
   if (!nodes.length) return false;
 
   const flowPalette = getFlowPalette(currentPaletteName(), isPaletteReversed());
   const isDark = isDarkFamily();
 
+  const nodeList = [];
   nodes.forEach((node, i) => {
     const colorObj = flowPalette[i % flowPalette.length];
     node.setAttribute('data-cnode', String(i));
     node.querySelectorAll('rect, circle, polygon, path').forEach(shape => {
-      setInline(shape, { fill: badgeTint(colorObj.fill, isDark), stroke: colorObj.fill, 'stroke-width': '2' });
+      if (!shape.classList.contains('outer')) {
+        setInline(shape, { fill: badgeTint(colorObj.fill, isDark), stroke: colorObj.fill, 'stroke-width': '2' });
+      }
     });
+    let box = null;
+    try { box = elViewportBox(node); } catch (e) { box = null; }
+    nodeList.push({ color: colorObj.fill, box });
   });
+
+  if (isDiagram) {
+    const edges = svg.querySelectorAll('.edgePaths path, .edgePath path');
+    edges.forEach((edge, idx) => {
+      const start = pathStartPoint(edge);
+      if (!start) return;
+      let best = null, bestDist = Infinity;
+      for (const n of nodeList) {
+        if (!n.box) continue;
+        const dd = distanceToBox(start.x, start.y, n.box);
+        if (dd < bestDist) { bestDist = dd; best = n; }
+      }
+      if (!best) return;
+      const color = best.color;
+      setInline(edge, { stroke: color, 'stroke-width': '2' });
+
+      ['marker-end', 'marker-start'].forEach(attr => {
+        const ref = edge.getAttribute(attr);
+        if (!ref) return;
+        const markerId = ref.replace(/^url\(#?/, '').replace(/\)$/, '').replace(/['"]/g, '');
+        if (!markerId) return;
+        const marker = svg.querySelector(`marker#${CSS.escape(markerId)}`);
+        if (!marker || !marker.parentNode) return;
+        const newId = markerId + '-fc' + idx;
+        let clone = svg.querySelector(`marker#${CSS.escape(newId)}`);
+        if (!clone) {
+          clone = marker.cloneNode(true);
+          clone.setAttribute('id', newId);
+          clone.querySelectorAll('path').forEach(p => setInline(p, { fill: color, stroke: color }));
+          marker.parentNode.appendChild(clone);
+        }
+        edge.setAttribute(attr, `url(#${newId})`);
+      });
+    });
+  }
+
   return true;
 }
 

@@ -102,18 +102,35 @@ export function validateSequenceDiagram(cleanText, lines, addDiag) {
     // STEP 2: Loop & Control Block Balancing Check (loop, alt, opt, par, critical, rect, box)
     const blockOpenMatch = trimmed.match(/^(loop|alt|opt|par|critical|rect|box)\b/i);
     if (blockOpenMatch) {
-      blockStack.push({ type: blockOpenMatch[1], lineNum: lineNum });
+      blockStack.push({ type: blockOpenMatch[1], lineNum: lineNum, hasStatements: false });
+    } else if (/^else\b/i.test(trimmed)) {
+      if (blockStack.length > 0) {
+        const top = blockStack[blockStack.length - 1];
+        if (!top.hasStatements && top.type !== 'rect' && top.type !== 'box') {
+          addDiag(top.lineNum, `Empty Block Warning: '${top.type}' block on line ${top.lineNum} has no inner messages. Add a message or note to avoid collapsed vertical text.`, "warning");
+        }
+        top.hasStatements = false;
+        top.lineNum = lineNum;
+        top.type = 'else';
+      }
     } else if (/^end\b/i.test(trimmed)) {
       if (blockStack.length > 0) {
-        blockStack.pop();
+        const top = blockStack.pop();
+        if (!top.hasStatements && top.type !== 'rect' && top.type !== 'box') {
+          addDiag(top.lineNum, `Empty Block Warning: '${top.type}' block on line ${top.lineNum} has no inner messages. Add a message or note to avoid collapsed vertical text.`, "warning");
+        }
       } else {
         addDiag(lineNum, `Syntax Error: Unmatched "end". Expected opening loop or block.`, "error");
         return;
       }
+    } else {
+      if (blockStack.length > 0 && !/^(?:rect|box|autonumber|title)\b/i.test(trimmed)) {
+        blockStack[blockStack.length - 1].hasStatements = true;
+      }
     }
 
     // STEP 3: Alias / Label Usage Check (Check if display label is used instead of participant ID)
-    if (labelToIdMap.size > 0 && !/^\s*(?:participant|actor|boundary|control|entity|database|collections|queue)\b/i.test(trimmed)) {
+    if (labelToIdMap.size > 0 && !/^\s*(?:participant|actor|boundary|control|entity|database|collections|queue|Note)\b/i.test(trimmed)) {
       for (const [label, id] of labelToIdMap.entries()) {
         const labelWordRegex = new RegExp(`\\b${label}\\b`, 'i');
         if (labelWordRegex.test(trimmed)) {
@@ -242,6 +259,54 @@ export function autoFixSequenceCode(fixed) {
 
   // 5. Arrow with target but missing colon (e.g., "Alice ->> Bob") -> "Alice ->> Bob: Message"
   code = code.replace(/^(\s*[\w\-[\]()]+\s*(?:->>|-->>)\s*[\w\-[\]()]+)\s*$/gm, '$1: Message');
+
+  // 6. Fix empty sequence diagram blocks (alt, opt, loop, else, par, critical) by adding a neutral structural span note
+  const allKnownActors = [];
+  const pDeclRegex = /^\s*(?:participant|actor|boundary|control|entity|database|collections|queue)\s+("[^"]+"|[A-Za-z0-9_]+)/gim;
+  let pMatch;
+  while ((pMatch = pDeclRegex.exec(code)) !== null) {
+    const id = pMatch[1].replace(/^"|"$/g, '');
+    if (!allKnownActors.includes(id)) allKnownActors.push(id);
+  }
+
+  const msgRegex = /^\s*("[^"]+"|[A-Za-z0-9_]+)\s*(?:->>|->|-->>|-->|-x|--x|-\)|--\)|==>)\s*("[^"]+"|[A-Za-z0-9_]+)/gmi;
+  let mMatch;
+  while ((mMatch = msgRegex.exec(code)) !== null) {
+    const src = mMatch[1].replace(/^"|"$/g, '');
+    const dest = mMatch[2].replace(/^"|"$/g, '');
+    if (!allKnownActors.includes(src)) allKnownActors.push(src);
+    if (!allKnownActors.includes(dest)) allKnownActors.push(dest);
+  }
+
+  const firstActor = allKnownActors[0] || 'Alice';
+  const lastActor = allKnownActors.length >= 2 ? allKnownActors[allKnownActors.length - 1] : (allKnownActors[1] || 'Bob');
+  const defaultSpan = allKnownActors.length >= 2 ? `${firstActor}, ${lastActor}` : (allKnownActors[0] ? `${allKnownActors[0]}` : 'Alice, Bob');
+
+  const lines = code.split('\n');
+  const fixedLines = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    fixedLines.push(line);
+    const trimmed = line.trim();
+
+    if (/^(?:alt|opt|loop|par|critical|else)\b/i.test(trimmed)) {
+      // Look ahead to see if the next non-empty, non-comment line is 'else' or 'end'
+      let nextStmtIdx = -1;
+      for (let j = i + 1; j < lines.length; j++) {
+        const nextTrimmed = lines[j].trim();
+        if (!nextTrimmed || nextTrimmed.startsWith('%%')) continue;
+        nextStmtIdx = j;
+        break;
+      }
+
+      if (nextStmtIdx !== -1 && /^(?:else|end)\b/i.test(lines[nextStmtIdx].trim())) {
+        const indent = (line.match(/^\s*/) || [''])[0] + '    ';
+        fixedLines.push(`${indent}Note over ${defaultSpan}: (action)`);
+      }
+    }
+  }
+  code = fixedLines.join('\n');
 
   // Auto-Fix unclosed loops / blocks by appending missing 'end' statements
   const lns = code.split('\n');

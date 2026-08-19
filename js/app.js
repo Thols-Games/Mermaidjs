@@ -2,12 +2,11 @@ import mermaid from '../mermaid-11.16.0/package/dist/mermaid.esm.min.mjs';
 import { VALID_DIAGRAM_TYPES, ALLOWED_DIAGRAM_TYPES, isDiagramTypeAllowed } from './diagram-types.js';
 import { DIAGRAMS } from './diagrams.js';
 import { injectHLPaletteColors } from './dom.js';
-import { syncGutter, syncLocalHL, showEditorError, clearEditorError } from './editor.js';
-import { renderOne } from './renderer.js';
+import { showEditorError, clearEditorError, showEditorWarnings, checkSequenceDiagramWarnings } from './editor.js';
+import { renderOne, applyMermaidConfig, getAutonumberConfig } from './renderer.js';
 import { initUiPanels, initSnippets, initInteractiveSelection, initExportModal } from './ui.js';
 import { initZoomPanControls } from './zoom-pan.js';
 import { autoFixMermaidCode, formatAndAlignMermaidCode, updateParticipantAliasesInCode } from './auto-fix.js';
-import { initAutocomplete } from './autocomplete.js';
 
 window.VALID_DIAGRAM_TYPES = VALID_DIAGRAM_TYPES;
 window.ALLOWED_DIAGRAM_TYPES = ALLOWED_DIAGRAM_TYPES;
@@ -76,8 +75,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (elType && item.type) elType.value = item.type;
     if (elSrc) {
       elSrc.value = item.src;
-      syncGutter();
-      syncLocalHL();
+      elSrc.dispatchEvent(new Event('input'));
       if (diagramTypeBadge && DIAGRAMS[item.type]) {
         diagramTypeBadge.textContent = DIAGRAMS[item.type].label || item.type;
       }
@@ -91,9 +89,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   function loadExample(key) {
     const d = DIAGRAMS[key];
     if (!d || !elSrc) return;
-    elSrc.value = d.src ? d.src + '\n' : '';
-    syncGutter();
-    syncLocalHL();
+    elSrc.value = d.src || '';
+    // Push the external write into CodeMirror (mirrors via #source input event).
+    elSrc.dispatchEvent(new Event('input'));
     if (diagramTypeBadge) diagramTypeBadge.textContent = d.label || key;
     renderOne(elSrc.value);
     pushDiagramHistory(key, elSrc.value);
@@ -126,21 +124,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  const diagramAutonumberToggleBtn = document.getElementById('diagramAutonumberToggleBtn');
-  const getAutonumberConfig = () => {
-    return diagramAutonumberToggleBtn ? diagramAutonumberToggleBtn.checked : false;
-  };
-
   // Initialize Mermaid library
   // Using securityLevel 'strict' (default) to prevent XSS attacks when hosted publicly.
-  await mermaid.initialize({
-    startOnLoad: false,
-    theme: elTheme && elTheme.value === 'teal' ? 'dark' : (elTheme ? elTheme.value : 'dark'),
-    securityLevel: 'strict',
-    sequence: {
-      showSequenceNumbers: getAutonumberConfig()
-    }
-  });
+  await applyMermaidConfig(
+    getAutonumberConfig(),
+    (elTheme && elTheme.value === 'teal') ? 'dark' : (elTheme ? elTheme.value : 'dark')
+  );
 
   mermaid.parseError = (err, hash) => {
     showEditorError(err, hash);
@@ -148,7 +137,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Wire controls
   initZoomPanControls();
-  initUiPanels();
+  await initUiPanels();
   initSnippets();
   initInteractiveSelection();
   initExportModal();
@@ -167,7 +156,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (savedHlMode) elHlMode.value = savedHlMode;
     elHlMode.addEventListener('change', () => {
       localStorage.setItem('editorHlMode', elHlMode.value);
-      syncLocalHL();
+      if (window.__cmEditor) window.__cmEditor.setHlMode(elHlMode.value !== 'off');
     });
   }
 
@@ -186,8 +175,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const handleCursorSync = () => {
       lastSelectionStart = elSrc.selectionStart;
       lastSelectionEnd = elSrc.selectionEnd;
-      syncGutter();
-      syncLocalHL();
       window.dispatchEvent(new CustomEvent('cursorSync', {
         detail: { selectionStart: lastSelectionStart, selectionEnd: lastSelectionEnd }
       }));
@@ -247,7 +234,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         elSrc.value = val.substring(0, lineStart) + newLines.join('\n') + val.substring(lineEnd);
         elSrc.selectionStart = lineStart;
         elSrc.selectionEnd = lineStart + newLines.join('\n').length;
-        syncGutter();
         renderOne(elSrc.value);
       }
     });
@@ -263,14 +249,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       let mmTheme = elTheme.value;
       if (mmTheme === 'teal') mmTheme = 'dark';
-      await mermaid.initialize({
-        startOnLoad: false,
-        theme: mmTheme,
-        securityLevel: 'strict',
-        sequence: {
-          showSequenceNumbers: getAutonumberConfig()
-        }
-      });
+      await applyMermaidConfig(getAutonumberConfig(), mmTheme);
       renderOne(elSrc.value);
     });
   }
@@ -282,31 +261,18 @@ document.addEventListener('DOMContentLoaded', async () => {
       document.documentElement.classList.toggle('theme-light', !isTeal);
       document.documentElement.classList.toggle('theme-teal', isTeal);
       document.documentElement.style.colorScheme = isTeal ? 'dark' : 'light';
-      await mermaid.initialize({
-        startOnLoad: false,
-        theme: isTeal ? 'dark' : 'default',
-        securityLevel: 'strict',
-        sequence: {
-          showSequenceNumbers: getAutonumberConfig()
-        }
-      });
+      await applyMermaidConfig(getAutonumberConfig(), isTeal ? 'dark' : 'default');
       renderOne(elSrc.value);
     });
   }
 
+  const diagramAutonumberToggleBtn = document.getElementById('diagramAutonumberToggleBtn');
   if (diagramAutonumberToggleBtn) {
     diagramAutonumberToggleBtn.addEventListener('change', async () => {
       const isAutonumber = diagramAutonumberToggleBtn.checked;
       let mmTheme = elTheme ? elTheme.value : 'dark';
       if (mmTheme === 'teal') mmTheme = 'dark';
-      await mermaid.initialize({
-        startOnLoad: false,
-        theme: mmTheme,
-        securityLevel: 'strict',
-        sequence: {
-          showSequenceNumbers: isAutonumber
-        }
-      });
+      await applyMermaidConfig(isAutonumber, mmTheme);
       renderOne(elSrc.value);
     });
   }
@@ -323,8 +289,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     btnClear.addEventListener('click', () => {
       if (elSrc) {
         elSrc.value = '';
-        syncGutter();
-        syncLocalHL();
+        elSrc.dispatchEvent(new Event('input'));
         clearEditorError();
         renderOne('');
         elSrc.focus();
@@ -356,10 +321,16 @@ document.addEventListener('DOMContentLoaded', async () => {
       try {
         if (window.hlErrorLines) window.hlErrorLines.clear();
         const isValid = await mermaid.parse(elSrc.value);
+        const warnings = checkSequenceDiagramWarnings(elSrc.value);
         if (isValid) {
-          btnValidate.innerHTML = '<span style="color: var(--accent); font-weight: 600;">Valid ✓</span>';
-          if (btnFix) btnFix.style.display = 'none';
-          clearEditorError();
+          if (warnings && warnings.length > 0) {
+            btnValidate.innerHTML = '<span style="color: #e2a23b; font-weight: 600;">Warnings ⚠</span>';
+            showEditorWarnings(warnings);
+          } else {
+            clearEditorError();
+            btnValidate.innerHTML = '<span style="color: var(--accent); font-weight: 600;">Valid ✓</span>';
+            if (btnFix) btnFix.style.display = 'none';
+          }
         }
       } catch (err) {
         showEditorError(err);
@@ -385,8 +356,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         elSrc.scrollTop = scrollTop;
         elSrc.scrollLeft = scrollLeft;
 
-        syncGutter();
-        syncLocalHL();
+        elSrc.dispatchEvent(new Event('input'));
         clearEditorError();
         await renderOne(fixedCode);
       }
@@ -403,7 +373,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         const aligned = formatAndAlignMermaidCode(code);
         elSrc.value = aligned;
-        syncGutter();
+        elSrc.dispatchEvent(new Event('input'));
         renderOne(elSrc.value);
       }
     });
@@ -411,13 +381,23 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 
 
-  // Initialize diagram type autocomplete
-  initAutocomplete(elSrc);
+  // CodeMirror is now the default editor; it provides its own diagram-type
+  // autocomplete, so the legacy autocomplete panel is retired.
 
   // Load initial example
   if (elType && elType.value) {
     loadExample(elType.value);
   } else {
     loadExample('sequence');
+  }
+
+  // Initialize the CodeMirror editor (lazy import; the import map is served from
+  // /node_modules). It mirrors every edit into the hidden #source so the rest of
+  // the render pipeline is unchanged.
+  try {
+    const { initCmEditor } = await import('./cm-editor.js');
+    initCmEditor();
+  } catch (e) {
+    console.error('CodeMirror init failed:', e);
   }
 });
