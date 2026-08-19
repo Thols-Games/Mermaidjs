@@ -2,42 +2,42 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Diagram Type Autocomplete on Empty Editor', () => {
 
-  test('should show autocomplete panel when editor is empty and user types a prefix', async ({ page }) => {
+  test('should show autocomplete when editor is empty and user types a prefix', async ({ page }) => {
     await page.goto('/');
-    
+
     // Clear editor to make it empty
-    const editor = page.locator('#source');
     const clearBtn = page.locator('#clearBtn');
     await clearBtn.click();
-    await expect(editor).toHaveValue('');
+    await expect(page.locator('#source')).toHaveValue('');
 
-    // Focus and type 'f'
-    await editor.focus();
-    await editor.type('f');
+    // Focus the CodeMirror editor and type 'f' (header prefix)
+    const cm = page.locator('.cm-content');
+    await cm.click();
+    await page.keyboard.type('f');
 
-    // Autocomplete panel should show
-    const acPanel = page.locator('#autocompletePanel');
-    await expect(acPanel).toHaveClass(/show/);
+    // CM autocomplete tooltip should show
+    const tip = page.locator('.cm-tooltip-autocomplete').first();
+    await expect(tip).toBeVisible({ timeout: 5000 });
 
-    // Auto-Fix button should NOT be visible while typing header prefix
+    // Auto-Fix button should NOT be visible while typing a header prefix
     const fixBtn = page.locator('#fixBtn');
     await expect(fixBtn).not.toBeVisible();
 
     // There should be a flowchart option
-    const flowchartItem = acPanel.locator('.ac-item', { hasText: 'Flowchart' });
+    const flowchartItem = tip.locator('li[role="option"]').filter({ hasText: 'Flowchart' });
     await expect(flowchartItem).toBeVisible();
 
     // Click on it
     await flowchartItem.click();
 
-    // Editor should be populated with flowchart sample code
-    await expect(editor).toHaveValue(/flowchart TD/);
+    // Editor (mirrored #source) should be populated with flowchart sample code
+    await expect(page.locator('#source')).toHaveValue(/flowchart TD/);
 
     // Dropdown value should update
     const diagramType = page.locator('#diagramType');
     await expect(diagramType).toHaveValue('flowchart');
 
-    // Autocomplete panel should be hidden
-    await expect(acPanel).not.toHaveClass(/show/);
+    // Autocomplete tooltip should be hidden
+    await expect(page.locator('.cm-tooltip-autocomplete')).toHaveCount(0);
   });
 });

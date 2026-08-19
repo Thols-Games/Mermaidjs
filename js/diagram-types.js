@@ -24,9 +24,7 @@ export const ALLOWED_DIAGRAM_TYPES = [
  * Helper function to check whether a given diagram type key or object is allowed.
  */
 export function isDiagramTypeAllowed(key, diagramObj) {
-  const allowed = (typeof window !== 'undefined' && window.ALLOWED_DIAGRAM_TYPES)
-    ? window.ALLOWED_DIAGRAM_TYPES
-    : ALLOWED_DIAGRAM_TYPES;
+  const allowed = ALLOWED_DIAGRAM_TYPES;
 
   if (!allowed || !Array.isArray(allowed)) return true;
 

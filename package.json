@@ -3,7 +3,15 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.html",
-  "scripts": {},
+  "scripts": {
+    "start": "node serve.mjs",
+    "check": "node --check js/app.js js/cm-editor.js js/renderer.js js/ui.js js/editor.js js/palettes.js js/zoom-pan.js js/auto-fix.js js/diagram-types.js js/diagrams.js js/mermaid-language.js js/cm-decorations.js js/cm-diagnostics.js js/cm-autocomplete.js js/validators/sequence-validator.js js/validators/flowchart-validator.js js/validators/class-validator.js",
+    "test": "playwright test",
+    "test:cm": "playwright test tests/cm/",
+    "test:autofix": "playwright test tests/autofix/",
+    "test:sync": "playwright test tests/selection-sync/",
+    "vendor": "node scripts/vendor-codemirror.mjs"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",

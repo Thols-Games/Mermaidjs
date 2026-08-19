@@ -1,8 +1,8 @@
-import { applyDiagramStyle, applyDiagramFont, applyDiagramThickness } from './renderer.js';
+import { applyDiagramStyle, applyDiagramFont, applyDiagramThickness, renderOne, reapplyMermaidConfig, getAutonumberConfig } from './renderer.js';
 
 let elSrc, elType, elTheme, btnToggleSrc, btnOpenEditor, sourceCol, toggleEditor, btnSettingsToggle, settingsPanel, shapesPanel, colorWheelBtn, themePanel, shapesToolbarBtn, numberColorBtn, numberColorPanel, syncDiagramThemeToggleState, textSizeBtn, textSizePopup, thicknessSlider, numberColorPicker, circleColorPicker, syncNumberColor, snippetsContainer, snippetsBtn, snippetsPanel, SNIPPETS, snippetsHtml, updateSnippetsVisibility, editorResizeHandle, isResizingEditor, editorStartWidth, resizeStartX, syncPreviewContainerPosition, btnFullscreen, previewContainer, elHlMode, elHlLayer, textareaWrap;
 
-export function initUiPanels() {
+export async function initUiPanels() {
   elSrc = document.getElementById('source');
   elType = document.getElementById('diagramType');
   elTheme = document.getElementById('theme');
@@ -107,6 +107,19 @@ export function initUiPanels() {
   // Set initial state based on active theme
   syncDiagramThemeToggleState();
 
+  // Sequence layout settings only apply to sequence diagrams.
+  const seqLayoutSettings = document.getElementById('sequenceLayoutSettings');
+  const syncSequenceLayoutVisibility = () => {
+    if (!seqLayoutSettings) return;
+    const isSequence = elType ? elType.value === 'sequence' : false;
+    seqLayoutSettings.style.display = isSequence ? 'flex' : 'none';
+  };
+
+  if (elType) {
+    elType.addEventListener('change', syncSequenceLayoutVisibility);
+  }
+  syncSequenceLayoutVisibility();
+
 
 
   // Editor Font Size Stepper
@@ -135,9 +148,8 @@ export function initUiPanels() {
     document.documentElement.style.setProperty('--editor-font-size', size + 'px');
     localStorage.setItem('editorFontSize', size);
     if (textSizeValueEl) textSizeValueEl.textContent = size + 'px';
-    if (typeof syncGutter === 'function') syncGutter();
-    if (typeof syncLocalHL === 'function') syncLocalHL();
-    if (typeof updateTextareaActiveBg === 'function') updateTextareaActiveBg();
+    // Phase 6: drive the CM text-size Compartment directly.
+    if (window.__cmEditor) window.__cmEditor.setFontSize(size);
   };
 
   const getCurrentSize = () => {
@@ -232,6 +244,68 @@ export function initUiPanels() {
       applyDiagramThickness();
     });
   }
+
+  // ---- Sequence Layout controls (margins / arrows via Mermaid config) ----
+  const layoutControls = [
+    { id: 'seqDiagramMarginX', key: 'diagramMarginX', type: 'range' },
+    { id: 'seqDiagramMarginY', key: 'diagramMarginY', type: 'range' },
+    { id: 'seqActorMargin', key: 'actorMargin', type: 'range' },
+    { id: 'seqMessageMargin', key: 'messageMargin', type: 'range' },
+    { id: 'seqNoteMargin', key: 'noteMargin', type: 'range' },
+    { id: 'seqBoxTextMargin', key: 'boxTextMargin', type: 'range' },
+    { id: 'seqBottomMarginAdj', key: 'bottomMarginAdj', type: 'range' },
+    { id: 'seqMessageAlign', key: 'messageAlign', type: 'select' },
+    { id: 'seqMirrorActors', key: 'mirrorActors', type: 'checkbox' },
+    { id: 'seqWrap', key: 'wrap', type: 'checkbox' },
+    { id: 'seqRightAngles', key: 'rightAngles', type: 'checkbox' }
+  ];
+
+  const restoreLayoutControls = () => {
+    layoutControls.forEach(({ id, key, type }) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const saved = localStorage.getItem('seqLayout.' + key);
+      if (saved === null) return;
+      if (type === 'checkbox') {
+        el.checked = saved === 'true';
+      } else {
+        el.value = saved;
+      }
+      const valEl = document.getElementById(id + 'Val');
+      if (valEl) valEl.textContent = el.value;
+    });
+  };
+
+  const persistLayoutControl = ({ id, key, type }, el) => {
+    const saved = type === 'checkbox' ? String(el.checked) : el.value;
+    localStorage.setItem('seqLayout.' + key, saved);
+  };
+
+  layoutControls.forEach(ctrl => {
+    const el = document.getElementById(ctrl.id);
+    if (!el) return;
+
+    if (ctrl.type === 'range') {
+      el.addEventListener('input', () => {
+        const valEl = document.getElementById(ctrl.id + 'Val');
+        if (valEl) valEl.textContent = el.value;
+      });
+    }
+
+    el.addEventListener('change', async () => {
+      persistLayoutControl(ctrl, el);
+      await reapplyMermaidConfig(getAutonumberConfig());
+      renderOne(elSrc.value);
+    });
+  });
+
+  restoreLayoutControls();
+
+  // Re-apply restored layout choices to the live Mermaid config so a reload
+  // reflects saved values before the first render.
+  try {
+    await reapplyMermaidConfig(getAutonumberConfig());
+  } catch (e) { }
 
   numberColorPicker = document.getElementById('numberColorPicker');
   circleColorPicker = document.getElementById('circleColorPicker');
@@ -533,7 +607,16 @@ export function getMessagesInLoop(loopNode) {
       const transform = current.getAttribute('transform');
       if (transform) {
         const translateMatch = transform.match(/translate\s*\(\s*[\d.-]+\s*(?:[,\s]+\s*([\d.-]+)\s*)?\)/);
-        if (translateMatch) y += parseFloat(translateMatch[1] || 0);
+        if (translateMatch) {
+          const ty = parseFloat(translateMatch[1] || 0);
+          if (!isNaN(ty)) y += ty;
+        } else {
+          const matrixMatch = transform.match(/matrix\s*\(\s*[\d.-]+\s*,\s*[\d.-]+\s*,\s*[\d.-]+\s*,\s*[\d.-]+\s*,\s*[\d.-]+\s*,\s*([0-9.-]+)\s*\)/);
+          if (matrixMatch) {
+            const ty = parseFloat(matrixMatch[1]);
+            if (!isNaN(ty)) y += ty;
+          }
+        }
       }
       current = current.parentElement;
     }
@@ -543,9 +626,14 @@ export function getMessagesInLoop(loopNode) {
   allEls.forEach(el => {
     try {
       const b = el.getBBox();
+      if (!b || isNaN(b.y) || isNaN(b.height)) return;
       const offY = getSVGOffset(el);
-      minY = Math.min(minY, offY + b.y);
-      maxY = Math.max(maxY, offY + b.y + b.height);
+      const y1 = offY + b.y;
+      const y2 = y1 + b.height;
+      if (isFinite(y1) && isFinite(y2)) {
+        minY = Math.min(minY, y1);
+        maxY = Math.max(maxY, y2);
+      }
     } catch (e) { }
   });
 
@@ -553,9 +641,10 @@ export function getMessagesInLoop(loopNode) {
   return messages.filter(msg => {
     try {
       const b = msg.getBBox();
+      if (!b || isNaN(b.y)) return false;
       const offY = getSVGOffset(msg);
       const y = offY + b.y;
-      return y >= minY && y <= maxY;
+      return isFinite(y) && y >= minY && y <= maxY;
     } catch (e) {
       return false;
     }
@@ -580,6 +669,12 @@ export function highlightDiagramNode(node) {
     targetGroup.querySelector?.('rect.actor')
   );
 
+  const isNote = !!(
+    (node.tagName?.toLowerCase() === 'rect' && node.classList?.contains('note')) ||
+    node.classList?.contains('note') || node.classList?.contains('noteText') ||
+    targetGroup.classList?.contains('note') || targetGroup.querySelector?.('rect.note, text.note, .noteText')
+  );
+
   let elementsToBound = [targetGroup];
 
   if (isActor) {
@@ -599,6 +694,41 @@ export function highlightDiagramNode(node) {
         } catch (e) { }
       });
     }
+  } else if (isNote) {
+    const rect = targetGroup.querySelector?.('rect.note') || (node.tagName?.toLowerCase() === 'rect' && node.classList?.contains('note') ? node : null);
+    const text = targetGroup.querySelector?.('text.note, .noteText, text') || (node.tagName?.toLowerCase() === 'text' ? node : null);
+    if (rect) elementsToBound.push(rect);
+    if (text) elementsToBound.push(text);
+
+    if (rect && !text) {
+      try {
+        const rBox = rect.getBBox();
+        const allNoteTexts = svg.querySelectorAll('text.note, .noteText, text');
+        allNoteTexts.forEach(t => {
+          try {
+            const tBox = t.getBBox();
+            if (tBox.x >= rBox.x - 10 && tBox.x + tBox.width <= rBox.x + rBox.width + 10 &&
+                tBox.y >= rBox.y - 10 && tBox.y + tBox.height <= rBox.y + rBox.height + 10) {
+              elementsToBound.push(t);
+            }
+          } catch (e) { }
+        });
+      } catch (e) { }
+    } else if (text && !rect) {
+      try {
+        const tBox = text.getBBox();
+        const allNoteRects = svg.querySelectorAll('rect.note');
+        allNoteRects.forEach(r => {
+          try {
+            const rBox = r.getBBox();
+            if (tBox.x >= rBox.x - 10 && tBox.x + tBox.width <= rBox.x + rBox.width + 10 &&
+                tBox.y >= rBox.y - 10 && tBox.y + tBox.height <= rBox.y + rBox.height + 10) {
+              elementsToBound.push(r);
+            }
+          } catch (e) { }
+        });
+      } catch (e) { }
+    }
   } else if (isLoop) {
     if (typeof getMessagesInLoop === 'function') {
       const msgs = getMessagesInLoop(targetGroup);
@@ -616,8 +746,18 @@ export function highlightDiagramNode(node) {
       if (transform) {
         const translateMatch = transform.match(/translate\s*\(\s*([0-9.-]+)\s*(?:[,\s]+\s*([0-9.-]+)\s*)?\)/);
         if (translateMatch) {
-          x += parseFloat(translateMatch[1] || 0);
-          y += parseFloat(translateMatch[2] || 0);
+          const tx = parseFloat(translateMatch[1] || 0);
+          const ty = parseFloat(translateMatch[2] || 0);
+          if (!isNaN(tx)) x += tx;
+          if (!isNaN(ty)) y += ty;
+        } else {
+          const matrixMatch = transform.match(/matrix\s*\(\s*[\d.-]+\s*,\s*[\d.-]+\s*,\s*[\d.-]+\s*,\s*[\d.-]+\s*,\s*([0-9.-]+)\s*,\s*([0-9.-]+)\s*\)/);
+          if (matrixMatch) {
+            const tx = parseFloat(matrixMatch[1]);
+            const ty = parseFloat(matrixMatch[2]);
+            if (!isNaN(tx)) x += tx;
+            if (!isNaN(ty)) y += ty;
+          }
         }
       }
       current = current.parentElement;
@@ -628,19 +768,22 @@ export function highlightDiagramNode(node) {
   elementsToBound.forEach(el => {
     try {
       const b = el.getBBox();
+      if (!b || isNaN(b.x) || isNaN(b.y) || isNaN(b.width) || isNaN(b.height)) return;
       const off = getSVGOffset(el);
       const x1 = off.x + b.x;
       const y1 = off.y + b.y;
       const x2 = x1 + b.width;
       const y2 = y1 + b.height;
-      minX = Math.min(minX, x1);
-      minY = Math.min(minY, y1);
-      maxX = Math.max(maxX, x2);
-      maxY = Math.max(maxY, y2);
+      if (isFinite(x1) && isFinite(y1) && isFinite(x2) && isFinite(y2)) {
+        minX = Math.min(minX, x1);
+        minY = Math.min(minY, y1);
+        maxX = Math.max(maxX, x2);
+        maxY = Math.max(maxY, y2);
+      }
     } catch (e) { }
   });
 
-  if (!isFinite(minX) || !isFinite(minY)) return;
+  if (!isFinite(minX) || !isFinite(minY) || !isFinite(maxX) || !isFinite(maxY) || isNaN(minX) || isNaN(minY) || isNaN(maxX) || isNaN(maxY)) return;
 
   const pad = 6;
   const box = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
@@ -720,14 +863,44 @@ export function highlightDiagramNodeByText(lineText, occurrenceIndex = 0) {
   const noteMatch = trimmed.match(/^Note\s+(?:over|left of|right of)\s+[^:]+:\s*(.*)/i);
   if (noteMatch) {
     const noteText = noteMatch[1].trim();
-    const noteEls = Array.from(svg.querySelectorAll('g.note, rect.note, text.note, .noteText'));
-    const matchedNotes = noteEls.filter(el => {
-      const txt = (el.textContent || '').trim();
-      return txt === noteText || txt.includes(noteText);
+    const rawNoteEls = Array.from(svg.querySelectorAll('rect.note, text.note, .noteText, g.note'));
+    const allNoteGroups = rawNoteEls.reduce((acc, el) => {
+      const g = el.closest ? (el.closest('g.note') || (el.parentElement?.tagName?.toLowerCase() === 'g' && el.parentElement !== svg ? el.parentElement : el)) : el;
+      if (!acc.includes(g)) acc.push(g);
+      return acc;
+    }, []);
+
+    const distinctNotes = allNoteGroups.length > 0 ? allNoteGroups : Array.from(svg.querySelectorAll('rect.note, .noteText'));
+    const matchedNotes = distinctNotes.filter(g => {
+      const txt = (g.textContent || '').trim();
+      return txt === noteText || txt.includes(noteText) || (noteText && noteText.includes(txt));
     });
+
     if (matchedNotes.length > 0) {
-      highlightDiagramNode(matchedNotes[Math.min(occurrenceIndex, matchedNotes.length - 1)]);
-      return;
+      let noteOccurrenceIndex = 0;
+      if (elSrc) {
+        let exactLineCount = 0;
+        const lines = elSrc.value.split('\n');
+        for (let i = 0; i < lines.length; i++) {
+          const l = lines[i].trim();
+          if (l === trimmed) {
+            if (exactLineCount === occurrenceIndex) break;
+            exactLineCount++;
+          }
+          const nm = l.match(/^Note\s+(?:over|left of|right of)\s+[^:]+:\s*(.*)/i);
+          if (nm && (nm[1].trim() === noteText || nm[1].trim().includes(noteText) || (noteText && noteText.includes(nm[1].trim())))) {
+            noteOccurrenceIndex++;
+          }
+        }
+      } else {
+        noteOccurrenceIndex = occurrenceIndex;
+      }
+
+      const target = matchedNotes[Math.min(noteOccurrenceIndex, matchedNotes.length - 1)];
+      if (target) {
+        highlightDiagramNode(target);
+        return;
+      }
     }
   }
 
@@ -866,7 +1039,7 @@ export function initInteractiveSelection() {
 
     const textBefore = val.substring(0, lineStart);
     const lineNumber = textBefore.split('\n').length;
-    if (typeof updateTextareaActiveBg === 'function') updateTextareaActiveBg(lineNumber);
+    // (CodeMirror draws the active line natively; the legacy active-line bar is retired.)
   };
 
   elSrc.addEventListener('keyup', handleTextareaSelection);
@@ -896,6 +1069,12 @@ export function initInteractiveSelection() {
         node.classList?.contains('loopLine') || node.classList?.contains('loopText') ||
         node.classList?.contains('labelText') || node.classList?.contains('labelBox') ||
         targetGroup.querySelector?.('.loopLine, .loopText')
+      );
+
+      const isNoteElement = !!(
+        (node.tagName?.toLowerCase() === 'rect' && node.classList?.contains('note')) ||
+        node.classList?.contains('note') || node.classList?.contains('noteText') ||
+        targetGroup.classList?.contains('note') || targetGroup.querySelector?.('rect.note, text.note, .noteText')
       );
 
       const sourceText = elSrc.value;
@@ -968,6 +1147,58 @@ export function initInteractiveSelection() {
           m = loopLine.exec(sourceText);
           if (m) startIndex = m.index;
         }
+      } else if (isNoteElement) {
+        const rawNoteEls = Array.from(svg.querySelectorAll('rect.note, text.note, .noteText, g.note'));
+        const allNotes = rawNoteEls.reduce((acc, el) => {
+          const g = el.closest ? (el.closest('g.note') || (el.parentElement?.tagName?.toLowerCase() === 'g' && el.parentElement !== svg ? el.parentElement : el)) : el;
+          if (!acc.includes(g)) acc.push(g);
+          return acc;
+        }, []);
+
+        const distinctNotes = allNotes.length > 0 ? allNotes : Array.from(svg.querySelectorAll('rect.note, .noteText'));
+        const clickedNote = distinctNotes.find(g => g === targetGroup || g === node || g.contains(node)) || targetGroup;
+        const noteText = (clickedNote.textContent || node.textContent || '').trim();
+
+        const matchingNotes = distinctNotes.filter(g => {
+          const txt = (g.textContent || '').trim();
+          return txt === noteText || txt.includes(noteText) || (noteText && noteText.includes(txt));
+        });
+
+        let svgOccurrenceIndex = 0;
+        for (let i = 0; i < matchingNotes.length; i++) {
+          if (matchingNotes[i] === clickedNote || matchingNotes[i] === targetGroup || matchingNotes[i] === node || matchingNotes[i].contains(node)) {
+            svgOccurrenceIndex = i;
+            break;
+          }
+        }
+
+        const noteRegex = /^\s*note\s+(?:over|left of|right of)\s+[^:]*:\s*(.*)$/igm;
+        let matchCount = 0;
+        let m;
+        while ((m = noteRegex.exec(sourceText)) !== null) {
+          const content = m[1].trim();
+          if (content === noteText || content.includes(noteText) || (noteText && noteText.includes(content))) {
+            if (matchCount === svgOccurrenceIndex) {
+              startIndex = m.index;
+              break;
+            }
+            matchCount++;
+          }
+        }
+
+        if (startIndex === -1) {
+          noteRegex.lastIndex = 0;
+          let noteIdx = distinctNotes.findIndex(g => g === clickedNote || g === targetGroup || g.contains(node));
+          if (noteIdx === -1) noteIdx = 0;
+          let count = 0;
+          while ((m = noteRegex.exec(sourceText)) !== null) {
+            if (count === noteIdx) {
+              startIndex = m.index;
+              break;
+            }
+            count++;
+          }
+        }
       } else {
         let textEls = targetGroup.querySelectorAll('text, .label-container');
         if (textEls.length === 0) textEls = node.querySelectorAll('text, .label-container');
@@ -1001,7 +1232,9 @@ export function initInteractiveSelection() {
 
             let svgOccurrenceIndex = 0;
             for (let i = 0; i < matchingSvgNodes.length; i++) {
-              if (matchingSvgNodes[i] === targetGroup || matchingSvgNodes[i] === node || matchingSvgNodes[i].contains(node)) {
+              const mGroup = matchingSvgNodes[i].closest ? matchingSvgNodes[i].closest('g') : null;
+              if (matchingSvgNodes[i] === targetGroup || matchingSvgNodes[i] === node ||
+                  mGroup === targetGroup || (targetGroup && targetGroup.contains(matchingSvgNodes[i]))) {
                 svgOccurrenceIndex = i;
                 break;
               }
@@ -1032,19 +1265,21 @@ export function initInteractiveSelection() {
       if (startIndex !== -1) {
         const lineStart = sourceText.lastIndexOf('\n', startIndex) + 1;
 
-        elSrc.focus();
-        elSrc.setSelectionRange(lineStart, lineStart);
+        if (window.__cmEditor && window.__cmEditor.selectRange) {
+          // Phase 5: in CodeMirror mode, drive the CM selection directly instead
+          // of the hidden legacy textarea.
+          window.__cmEditor.selectRange(lineStart);
+        } else {
+          elSrc.focus();
+          elSrc.setSelectionRange(lineStart, lineStart);
 
-        const textBefore = sourceText.substring(0, lineStart);
-        const lineNumber = textBefore.split('\n').length;
-        const computed = getComputedStyle(elSrc);
-        const lineHeight = parseFloat(computed.lineHeight) || 20;
-        const paddingTop = parseFloat(computed.paddingTop) || 0;
-        elSrc.scrollTop = Math.max(0, (lineNumber - 1) * lineHeight + paddingTop - (elSrc.clientHeight / 2));
-
-        if (typeof syncGutter === 'function') syncGutter();
-        if (typeof syncLocalHL === 'function') syncLocalHL();
-        if (typeof updateTextareaActiveBg === 'function') updateTextareaActiveBg(lineNumber);
+          const textBefore = sourceText.substring(0, lineStart);
+          const lineNumber = textBefore.split('\n').length;
+          const computed = getComputedStyle(elSrc);
+          const lineHeight = parseFloat(computed.lineHeight) || 20;
+          const paddingTop = parseFloat(computed.paddingTop) || 0;
+          elSrc.scrollTop = Math.max(0, (lineNumber - 1) * lineHeight + paddingTop - (elSrc.clientHeight / 2));
+        }
       }
     });
   }

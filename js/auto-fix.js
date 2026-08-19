@@ -87,9 +87,6 @@ export function autoFixMermaidCode(code, editorErrorLines = new Set()) {
   });
   fixed = lineArr2.join('\n');
 
-  // Fix sequence diagram empty alt/opt/else blocks
-  fixed = fixed.replace(/((?:alt|opt|else)[^\n]*\n)(?=\s*(?:else|end))/g, `$1    %% (empty block)\n`);
-
   // Fix missing 'end' for subgraphs / loops / alts / opts / pars / rects
   const openCount = (fixed.match(/^\s*(subgraph|loop|alt|opt|par|rect)\b/gim) || []).length;
   const endCount = (fixed.match(/^\s*end\b/gim) || []).length;

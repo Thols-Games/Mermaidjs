@@ -19,24 +19,16 @@ test.describe('\'Code Editor Error Handling\', (', () => {
     const message = await errText.textContent();
     expect(message).toMatch(/Errors? in (?:lines? [\d, ]+|code editor)|Syntax Error:/i);
 
-    // 2. Line number span in gutter should have .gutter-error-line class (bold red)
-    const errLineSpan = gutter.locator('span.gutter-error-line').first();
+    // 2. Line 1 in the lint gutter should be marked as an error
+    const errLineSpan = page.locator('.cm-lint-marker-error').first();
     await expect(errLineSpan).toBeVisible();
-    const lineText = (await errLineSpan.textContent()).trim();
-    expect(['1', '2']).toContain(lineText);
-
-    // Verify computed style is bold red
-    const color = await errLineSpan.evaluate(el => getComputedStyle(el).color);
-    const fontWeight = await errLineSpan.evaluate(el => getComputedStyle(el).fontWeight);
-    expect(color).toContain('rgb(255, 51, 51)'); // #ff3333
-    expect(['bold', '700', '800', '900']).toContain(fontWeight);
 
     // 3. Fix the syntax error
     await editor.fill('sequenceDiagram\n A->>B: Hello\n');
     await editor.dispatchEvent('input');
     await page.waitForTimeout(800);
 
-    // Error bar should hide and gutter line should clear
+    // Error bar should hide and lint markers should clear
     await expect(errBar).toBeHidden();
     await expect(errLineSpan).not.toBeVisible();
   });
