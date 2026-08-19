@@ -11,13 +11,11 @@ export const VALID_DIAGRAM_TYPES = [
 
 /**
  * Single source of truth for permitted/allowed Mermaid diagram types.
- * Only types included here (or configured in CONFIG.allowedDiagramTypes)
- * will be loaded into the diagram type dropdown and code editor autocomplete.
- * Restricted strictly to: sequence, class, flowchart, state, er.
+ * Only types included here will be loaded into the diagram type dropdown
+ * and code editor autocomplete. Restricted strictly to: sequence, class,
+ * flowchart, state, er.
  */
-export const ALLOWED_DIAGRAM_TYPES = (
-  typeof window !== 'undefined' && window.CONFIG && Array.isArray(window.CONFIG.allowedDiagramTypes)
-) ? window.CONFIG.allowedDiagramTypes : [
+export const ALLOWED_DIAGRAM_TYPES = [
   'none', 'flowchart', 'sequenceDiagram', 'sequence', 'classDiagram', 'class',
   'stateDiagram-v2', 'stateDiagram', 'state', 'erDiagram', 'er'
 ];

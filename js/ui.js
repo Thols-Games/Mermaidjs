@@ -1,596 +1,511 @@
 import { applyDiagramStyle, applyDiagramFont, applyDiagramThickness } from './renderer.js';
 
-let elSrc, elType, elTheme, btnToggleSrc, btnOpenEditor, sourceCol, toggleEditor, btnSettingsToggle, settingsPanel, shapesPanel, colorWheelBtn, themePanel, shapesToolbarBtn, syncDiagramThemeToggleState, textSizeBtn, textSizePopup, textSizeSlider, thicknessSlider, numberColorPicker, circleColorPicker, syncNumberColor, snippetsContainer, snippetsBtn, snippetsPanel, SNIPPETS, snippetsHtml, updateSnippetsVisibility, editorResizeHandle, isResizingEditor, editorStartWidth, resizeStartX, syncPreviewContainerPosition, btnFullscreen, previewContainer, elHlMode, elHlLayer, textareaWrap;
+let elSrc, elType, elTheme, btnToggleSrc, btnOpenEditor, sourceCol, toggleEditor, btnSettingsToggle, settingsPanel, shapesPanel, colorWheelBtn, themePanel, shapesToolbarBtn, numberColorBtn, numberColorPanel, syncDiagramThemeToggleState, textSizeBtn, textSizePopup, thicknessSlider, numberColorPicker, circleColorPicker, syncNumberColor, snippetsContainer, snippetsBtn, snippetsPanel, SNIPPETS, snippetsHtml, updateSnippetsVisibility, editorResizeHandle, isResizingEditor, editorStartWidth, resizeStartX, syncPreviewContainerPosition, btnFullscreen, previewContainer, elHlMode, elHlLayer, textareaWrap;
 
 export function initUiPanels() {
-    elSrc = document.getElementById('source');
-    elType = document.getElementById('diagramType');
-    elTheme = document.getElementById('theme');
-    btnToggleSrc = document.getElementById('toggleSrcBtn');
-    btnOpenEditor = document.getElementById('openEditorBtn');
-    sourceCol = document.getElementById('sourceCol');
+  elSrc = document.getElementById('source');
+  elType = document.getElementById('diagramType');
+  elTheme = document.getElementById('theme');
+  btnToggleSrc = document.getElementById('toggleSrcBtn');
+  btnOpenEditor = document.getElementById('openEditorBtn');
+  sourceCol = document.getElementById('sourceCol');
 
-    toggleEditor = function toggleEditor() {
-      const hidden = sourceCol.style.display === 'none';
-      sourceCol.style.display = hidden ? '' : 'none';
-      document.body.classList.toggle('src-hidden', !hidden);
-      if (typeof syncPreviewContainerPosition === 'function') {
-        syncPreviewContainerPosition();
-      }
+  toggleEditor = function toggleEditor() {
+    const hidden = sourceCol.style.display === 'none';
+    sourceCol.style.display = hidden ? '' : 'none';
+    document.body.classList.toggle('src-hidden', !hidden);
+    if (typeof syncPreviewContainerPosition === 'function') {
+      syncPreviewContainerPosition();
     }
+  }
 
-    btnToggleSrc.addEventListener('click', toggleEditor);
-    if (btnOpenEditor) btnOpenEditor.addEventListener('click', toggleEditor);
+  btnToggleSrc.addEventListener('click', toggleEditor);
+  if (btnOpenEditor) btnOpenEditor.addEventListener('click', toggleEditor);
 
-    const btnOpenCodeMirror = document.getElementById('openCodeMirrorBtn');
-    const cmFloatingWindow = document.getElementById('cmFloatingWindow');
-    const cmIframe = document.getElementById('cmIframe');
-    if (btnOpenCodeMirror && cmFloatingWindow && cmIframe) {
-      btnOpenCodeMirror.addEventListener('click', () => {
-        const currentTheme = document.documentElement.classList.contains('theme-light') ? 'theme-light' : 
-                             document.documentElement.classList.contains('theme-teal') ? 'theme-teal' : '';
-        cmIframe.src = `Mermaidjs/CodeMirrorEditor.html?theme=${currentTheme}`;
-        cmFloatingWindow.style.display = 'flex';
-        if (typeof syncPreviewContainerPosition === 'function') syncPreviewContainerPosition();
-      });
+  // ---- Toggle Settings Panel ----
+  btnSettingsToggle = document.getElementById('settingsToggleBtn');
+  settingsPanel = document.getElementById('settingsPanel');
+  shapesPanel = document.getElementById('shapesPanel');
+  colorWheelBtn = document.getElementById('colorWheelBtn');
+  themePanel = document.getElementById('themePanel');
+  shapesToolbarBtn = document.getElementById('shapesToolbarBtn');
+  numberColorBtn = document.getElementById('numberColorBtn');
+  numberColorPanel = document.getElementById('numberColorPanel');
 
-      // Sync theme dynamically
-      const observer = new MutationObserver(() => {
-        if (cmFloatingWindow.style.display !== 'none' && cmIframe.contentWindow) {
-          const currentTheme = document.documentElement.classList.contains('theme-light') ? 'theme-light' : 
-                               document.documentElement.classList.contains('theme-teal') ? 'theme-teal' : '';
-          cmIframe.contentWindow.postMessage({ type: 'theme-change', theme: currentTheme }, '*');
-        }
-      });
-      observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
-
-      const resizeObserver = new ResizeObserver(() => {
-        if (cmFloatingWindow.style.display !== 'none' && typeof syncPreviewContainerPosition === 'function') {
-          syncPreviewContainerPosition();
-        }
-      });
-      resizeObserver.observe(cmFloatingWindow);
-
-      // Window controls
-      document.getElementById('cmBtnClose')?.addEventListener('click', () => {
-        cmFloatingWindow.style.display = 'none';
-        cmIframe.src = '';
-        if (typeof syncPreviewContainerPosition === 'function') syncPreviewContainerPosition();
-      });
-      document.getElementById('cmBtnMax')?.addEventListener('click', () => {
-        if (cmFloatingWindow.style.width === '65vw' || cmFloatingWindow.style.width === '65%') {
-          cmFloatingWindow.style.width = '35vw';
-          cmFloatingWindow.style.top = '1rem';
-          cmFloatingWindow.style.left = '1rem';
-        } else {
-          cmFloatingWindow.style.width = '65vw';
-          cmFloatingWindow.style.top = '1rem';
-          cmFloatingWindow.style.left = '1rem';
-        }
-        if (typeof syncPreviewContainerPosition === 'function') syncPreviewContainerPosition();
-      });
-
-      // Dragging logic
-      const header = document.getElementById('cmFloatingHeader');
-      let isDragging = false, startX, startY, initialX, initialY;
-      header.addEventListener('mousedown', (e) => {
-        isDragging = true;
-        startX = e.clientX;
-        startY = e.clientY;
-        initialX = cmFloatingWindow.offsetLeft;
-        initialY = cmFloatingWindow.offsetTop;
-        document.body.style.userSelect = 'none';
-        
-        let blocker = document.getElementById('iframeBlocker');
-        if (!blocker) {
-          blocker = document.createElement('div');
-          blocker.id = 'iframeBlocker';
-          blocker.style.position = 'absolute';
-          blocker.style.top = '40px'; blocker.style.left = '0'; blocker.style.right = '0'; blocker.style.bottom = '0';
-          blocker.style.zIndex = '9999';
-          cmFloatingWindow.appendChild(blocker);
-        }
-      });
-      window.addEventListener('mousemove', (e) => {
-        if (isDragging) {
-          const dx = e.clientX - startX;
-          const dy = e.clientY - startY;
-          cmFloatingWindow.style.left = (initialX + dx) + 'px';
-          cmFloatingWindow.style.top = (initialY + dy) + 'px';
-          if (typeof syncPreviewContainerPosition === 'function') syncPreviewContainerPosition();
-        }
-      });
-      window.addEventListener('mouseup', () => {
-        if (isDragging) {
-          isDragging = false;
-          document.body.style.userSelect = '';
-          const blocker = document.getElementById('iframeBlocker');
-          if (blocker) blocker.remove();
-        }
-      });
-    }
-
-    window.addEventListener('message', (event) => {
-      if (event.data && event.data.type === 'mermaid-code-update') {
-        const elSrc = document.getElementById('src');
-        if (elSrc) {
-          elSrc.value = event.data.code;
-          if (typeof renderOne === 'function') {
-            renderOne(event.data.code);
-          }
-        }
-      }
+  if (btnSettingsToggle && settingsPanel) {
+    btnSettingsToggle.addEventListener('click', () => {
+      settingsPanel.classList.toggle('show');
+      if (themePanel) themePanel.classList.remove('show');
+      if (shapesPanel) shapesPanel.classList.remove('show');
+      if (numberColorPanel) numberColorPanel.classList.remove('show');
     });
+  }
 
-    // ---- Toggle Settings Panel ----
-    btnSettingsToggle = document.getElementById('settingsToggleBtn');
-    settingsPanel = document.getElementById('settingsPanel');
-    shapesPanel = document.getElementById('shapesPanel');
-    colorWheelBtn = document.getElementById('colorWheelBtn');
-    themePanel = document.getElementById('themePanel');
-    shapesToolbarBtn = document.getElementById('shapesToolbarBtn');
-
-    if (btnSettingsToggle && settingsPanel) {
-      btnSettingsToggle.addEventListener('click', () => {
-        settingsPanel.classList.toggle('show');
-        if (themePanel) themePanel.classList.remove('show');
-        if (shapesPanel) shapesPanel.classList.remove('show');
-      });
-    }
-
-    if (colorWheelBtn && themePanel) {
-      colorWheelBtn.addEventListener('click', () => {
-        themePanel.classList.toggle('show');
-        if (settingsPanel) settingsPanel.classList.remove('show');
-        if (shapesPanel) shapesPanel.classList.remove('show');
-      });
-    }
-
-    // ---- Shapes Panel ----
-    if (shapesToolbarBtn && shapesPanel) {
-      shapesToolbarBtn.addEventListener('click', () => {
-        shapesPanel.classList.toggle('show');
-        settingsPanel.classList.remove('show');
-        themePanel.classList.remove('show');
-      });
-    }
-
-    // ---- Click Outside to Close Panels ----
-    document.addEventListener('click', (e) => {
-      if (!e.target.closest('#settingsToggleBtn') && !e.target.closest('#settingsPanel')) {
-        settingsPanel.classList.remove('show');
-      }
-      if (!e.target.closest('#colorWheelBtn') && !e.target.closest('#themePanel')) {
-        themePanel.classList.remove('show');
-      }
-      if (!e.target.closest('#shapesToolbarBtn') && !e.target.closest('#shapesPanel') && shapesPanel) {
-        shapesPanel.classList.remove('show');
-      }
+  if (colorWheelBtn && themePanel) {
+    colorWheelBtn.addEventListener('click', () => {
+      themePanel.classList.toggle('show');
+      if (settingsPanel) settingsPanel.classList.remove('show');
+      if (shapesPanel) shapesPanel.classList.remove('show');
+      if (numberColorPanel) numberColorPanel.classList.remove('show');
     });
+  }
 
-    syncDiagramThemeToggleState = function syncDiagramThemeToggleState() {
-      /* removed */
-      const diagramThemeToggleBtn = document.getElementById('diagramThemeToggleBtn');
-      if (diagramThemeToggleBtn) {
-        const isNonDefault = document.documentElement.classList.contains('theme-teal') ||
-          document.documentElement.classList.contains('theme-dark') ||
-          (elTheme && elTheme.value !== 'default');
-        diagramThemeToggleBtn.checked = isNonDefault;
-      }
+  if (numberColorBtn && numberColorPanel) {
+    numberColorBtn.addEventListener('click', () => {
+      numberColorPanel.classList.toggle('show');
+      if (settingsPanel) settingsPanel.classList.remove('show');
+      if (themePanel) themePanel.classList.remove('show');
+      if (shapesPanel) shapesPanel.classList.remove('show');
+    });
+  }
+
+  // ---- Shapes Panel ----
+  if (shapesToolbarBtn && shapesPanel) {
+    shapesToolbarBtn.addEventListener('click', () => {
+      shapesPanel.classList.toggle('show');
+      settingsPanel.classList.remove('show');
+      themePanel.classList.remove('show');
+      if (numberColorPanel) numberColorPanel.classList.remove('show');
+    });
+  }
+
+  // ---- Click Outside to Close Panels ----
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('#settingsToggleBtn') && !e.target.closest('#settingsPanel')) {
+      settingsPanel.classList.remove('show');
     }
+    if (!e.target.closest('#colorWheelBtn') && !e.target.closest('#themePanel')) {
+      themePanel.classList.remove('show');
+    }
+    if (!e.target.closest('#numberColorBtn') && !e.target.closest('#numberColorPanel')) {
+      if (numberColorPanel) numberColorPanel.classList.remove('show');
+    }
+    if (!e.target.closest('#shapesToolbarBtn') && !e.target.closest('#shapesPanel') && shapesPanel) {
+      shapesPanel.classList.remove('show');
+    }
+  });
 
+  syncDiagramThemeToggleState = function syncDiagramThemeToggleState() {
     const diagramThemeToggleBtn = document.getElementById('diagramThemeToggleBtn');
-    /* removed */
     if (diagramThemeToggleBtn) {
-      diagramThemeToggleBtn.addEventListener('change', (e) => {
-        /* removed */
-        const newTheme = e.target.checked ? (localStorage.getItem('mermaid-last-dark-theme') || 'teal') : 'default';
-        if (elTheme && elTheme.value !== newTheme) {
-          if (e.target.checked && newTheme !== 'default') {
-            localStorage.setItem('mermaid-last-dark-theme', newTheme);
-          }
-          elTheme.value = newTheme;
-          elTheme.dispatchEvent(new Event('change'));
-        }
-      });
+      const isNonDefault = document.documentElement.classList.contains('theme-teal') ||
+        document.documentElement.classList.contains('theme-dark') ||
+        (elTheme && elTheme.value !== 'default');
+      diagramThemeToggleBtn.checked = isNonDefault;
     }
+  }
 
-    if (elTheme) {
-      elTheme.addEventListener('change', () => {
-        if (elTheme.value !== 'default') {
-          localStorage.setItem('mermaid-last-dark-theme', elTheme.value);
-        }
-        syncDiagramThemeToggleState();
-      });
-    }
-
-    // Set initial state based on active theme
-    syncDiagramThemeToggleState();
-
-
-
-    // Editor Font Size Slider
-    textSizeBtn = document.getElementById('textSizeBtn');
-    textSizePopup = document.getElementById('textSizePopup');
-    textSizeSlider = document.getElementById('textSizeSlider');
-
-    if (textSizeBtn && textSizePopup) {
-      textSizeBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        textSizePopup.style.display = textSizePopup.style.display === 'none' ? 'block' : 'none';
-      });
-      document.addEventListener('click', (e) => {
-        if (!e.target.closest('#textSizePopup') && !e.target.closest('#textSizeBtn')) {
-          textSizePopup.style.display = 'none';
-        }
-      });
-    }
-
-    if (textSizeSlider) {
-      const savedFontSize = localStorage.getItem('editorFontSize');
-      if (savedFontSize) {
-        document.documentElement.style.setProperty('--editor-font-size', savedFontSize + 'px');
-        textSizeSlider.value = savedFontSize;
+  if (elTheme) {
+    elTheme.addEventListener('change', () => {
+      if (elTheme.value !== 'default') {
+        localStorage.setItem('mermaid-last-dark-theme', elTheme.value);
       }
-      textSizeSlider.addEventListener('input', (e) => {
-        document.documentElement.style.setProperty('--editor-font-size', e.target.value + 'px');
-        localStorage.setItem('editorFontSize', e.target.value);
-        if (typeof syncGutter === 'function') syncGutter();
-        if (typeof syncLocalHL === 'function') syncLocalHL();
-        if (typeof updateTextareaActiveBg === 'function') updateTextareaActiveBg();
-      });
-    }
-
-
-
-    document.querySelectorAll('.theme-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
-        e.currentTarget.classList.add('active');
-        const newTheme = e.currentTarget.getAttribute('data-theme');
-        if (elTheme && elTheme.value !== newTheme) {
-          elTheme.value = newTheme;
-          elTheme.dispatchEvent(new Event('change'));
-        }
-      });
+      syncDiagramThemeToggleState();
     });
+  }
 
-    document.querySelectorAll('.palette-btn').forEach(btn => {
-  btn.addEventListener('click', (e) => {
-    document.querySelectorAll('.palette-btn').forEach(b => b.classList.remove('active'));
-    e.currentTarget.classList.add('active');
-    window.dispatchEvent(new Event('paletteChanged'));
+  // Set initial state based on active theme
+  syncDiagramThemeToggleState();
+
+
+
+  // Editor Font Size Stepper
+  textSizeBtn = document.getElementById('textSizeBtn');
+  textSizePopup = document.getElementById('textSizePopup');
+
+  if (textSizeBtn && textSizePopup) {
+    textSizeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      textSizePopup.style.display = textSizePopup.style.display === 'none' ? 'flex' : 'none';
+    });
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('#textSizePopup') && !e.target.closest('#textSizeBtn')) {
+        textSizePopup.style.display = 'none';
+      }
+    });
+  }
+
+  const textSizeValueEl = document.getElementById('textSizeValue');
+  const textSizeIncrease = document.getElementById('textSizeIncrease');
+  const textSizeDecrease = document.getElementById('textSizeDecrease');
+  const MIN_FONT = 10, MAX_FONT = 24;
+
+  const applyFontSize = (size) => {
+    size = Math.max(MIN_FONT, Math.min(MAX_FONT, size));
+    document.documentElement.style.setProperty('--editor-font-size', size + 'px');
+    localStorage.setItem('editorFontSize', size);
+    if (textSizeValueEl) textSizeValueEl.textContent = size + 'px';
+    if (typeof syncGutter === 'function') syncGutter();
+    if (typeof syncLocalHL === 'function') syncLocalHL();
+    if (typeof updateTextareaActiveBg === 'function') updateTextareaActiveBg();
+  };
+
+  const getCurrentSize = () => {
+    return parseInt(localStorage.getItem('editorFontSize') || '14', 10);
+  };
+
+  // Load saved size on init
+  const savedFontSize = localStorage.getItem('editorFontSize');
+  if (savedFontSize) {
+    document.documentElement.style.setProperty('--editor-font-size', savedFontSize + 'px');
+    if (textSizeValueEl) textSizeValueEl.textContent = savedFontSize + 'px';
+  }
+
+  if (textSizeIncrease) {
+    textSizeIncrease.addEventListener('click', (e) => {
+      e.stopPropagation();
+      applyFontSize(getCurrentSize() + 1);
+    });
+  }
+  if (textSizeDecrease) {
+    textSizeDecrease.addEventListener('click', (e) => {
+      e.stopPropagation();
+      applyFontSize(getCurrentSize() - 1);
+    });
+  }
+
+
+
+  document.querySelectorAll('.theme-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
+      e.currentTarget.classList.add('active');
+      const newTheme = e.currentTarget.getAttribute('data-theme');
+      if (elTheme && elTheme.value !== newTheme) {
+        elTheme.value = newTheme;
+        elTheme.dispatchEvent(new Event('change'));
+      }
+    });
   });
-});
 
-const paletteReverseToggle = document.getElementById('paletteReverseToggle');
-if (paletteReverseToggle) {
-  paletteReverseToggle.addEventListener('change', () => {
-    window.dispatchEvent(new Event('paletteChanged'));
+  const colorPaletteSelect = document.getElementById('colorPaletteSelect');
+  if (colorPaletteSelect) {
+    colorPaletteSelect.addEventListener('change', () => {
+      window.dispatchEvent(new Event('paletteChanged'));
+    });
+  }
+
+  const paletteReverseToggle = document.getElementById('paletteReverseToggle');
+  if (paletteReverseToggle) {
+    paletteReverseToggle.addEventListener('change', () => {
+      window.dispatchEvent(new Event('paletteChanged'));
+    });
+  }
+
+  document.querySelectorAll('.style-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      document.querySelectorAll('.style-btn').forEach(b => b.classList.remove('active'));
+      e.currentTarget.classList.add('active');
+      applyDiagramStyle();
+    });
   });
-}
 
-document.querySelectorAll('.style-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        document.querySelectorAll('.style-btn').forEach(b => b.classList.remove('active'));
-        e.currentTarget.classList.add('active');
-        applyDiagramStyle();
-      });
+  document.querySelectorAll('.font-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      document.querySelectorAll('.font-btn').forEach(b => b.classList.remove('active'));
+      e.currentTarget.classList.add('active');
+      applyDiagramFont();
     });
+  });
 
-    document.querySelectorAll('.font-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        document.querySelectorAll('.font-btn').forEach(b => b.classList.remove('active'));
-        e.currentTarget.classList.add('active');
-        applyDiagramFont();
-      });
+  document.querySelectorAll('.thickness-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      document.querySelectorAll('.thickness-btn').forEach(b => b.classList.remove('active'));
+      e.currentTarget.classList.add('active');
+      const slider = document.getElementById('diagramThicknessSlider');
+      if (slider) slider.value = e.currentTarget.getAttribute('data-thickness');
+      applyDiagramThickness();
     });
+  });
 
-    document.querySelectorAll('.thickness-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        document.querySelectorAll('.thickness-btn').forEach(b => b.classList.remove('active'));
-        e.currentTarget.classList.add('active');
-        const slider = document.getElementById('diagramThicknessSlider');
-        if (slider) slider.value = e.currentTarget.getAttribute('data-thickness');
-        applyDiagramThickness();
-      });
-    });
-
-    thicknessSlider = document.getElementById('diagramThicknessSlider');
-    if (thicknessSlider) {
-      thicknessSlider.addEventListener('input', (e) => {
-        const val = e.target.value;
-        document.querySelectorAll('.thickness-btn').forEach(b => {
-          if (b.getAttribute('data-thickness') === val) {
-            b.classList.add('active');
-          } else {
-            b.classList.remove('active');
-          }
-        });
-        applyDiagramThickness();
-      });
-    }
-
-    numberColorPicker = document.getElementById('numberColorPicker');
-    circleColorPicker = document.getElementById('circleColorPicker');
-    syncNumberColor = document.getElementById('syncNumberColor');
-    if (numberColorPicker && circleColorPicker && syncNumberColor) {
-      syncNumberColor.addEventListener('change', (e) => {
-        const disabled = e.target.checked;
-        numberColorPicker.disabled = disabled;
-        numberColorPicker.style.opacity = disabled ? '0.5' : '1';
-        circleColorPicker.disabled = disabled;
-        circleColorPicker.style.opacity = disabled ? '0.5' : '1';
-        if (typeof colorizeSequence === 'function') colorizeSequence();
-      });
-      numberColorPicker.addEventListener('input', () => {
-        if (typeof colorizeSequence === 'function') colorizeSequence();
-      });
-      circleColorPicker.addEventListener('input', () => {
-        if (typeof colorizeSequence === 'function') colorizeSequence();
-      });
-    }
-
-    // ---- Editor Panel Resize ----
-    editorResizeHandle = document.getElementById('editorResizeHandle');
-    isResizingEditor = false;
-    editorStartWidth = 500;
-    resizeStartX = 0;
-
-    syncPreviewContainerPosition = function syncPreviewContainerPosition() {
-      const previewContainerEl = document.querySelector('.preview-container');
-      if (previewContainerEl && sourceCol) {
-        if (document.body.classList.contains('src-hidden') || sourceCol.style.display === 'none') {
-          previewContainerEl.style.left = '0';
+  thicknessSlider = document.getElementById('diagramThicknessSlider');
+  if (thicknessSlider) {
+    thicknessSlider.addEventListener('input', (e) => {
+      const val = e.target.value;
+      document.querySelectorAll('.thickness-btn').forEach(b => {
+        if (b.getAttribute('data-thickness') === val) {
+          b.classList.add('active');
         } else {
-          const actualRight = sourceCol.getBoundingClientRect().right;
-          previewContainerEl.style.left = (actualRight + 16) + 'px';
+          b.classList.remove('active');
         }
+      });
+      applyDiagramThickness();
+    });
+  }
+
+  numberColorPicker = document.getElementById('numberColorPicker');
+  circleColorPicker = document.getElementById('circleColorPicker');
+  syncNumberColor = document.getElementById('syncNumberColor');
+  if (numberColorPicker && circleColorPicker && syncNumberColor) {
+    syncNumberColor.addEventListener('change', (e) => {
+      const disabled = e.target.checked;
+      numberColorPicker.disabled = disabled;
+      numberColorPicker.style.opacity = disabled ? '0.5' : '1';
+      circleColorPicker.disabled = disabled;
+      circleColorPicker.style.opacity = disabled ? '0.5' : '1';
+      if (typeof colorizeSequence === 'function') colorizeSequence();
+    });
+    numberColorPicker.addEventListener('input', () => {
+      if (typeof colorizeSequence === 'function') colorizeSequence();
+    });
+    circleColorPicker.addEventListener('input', () => {
+      if (typeof colorizeSequence === 'function') colorizeSequence();
+    });
+  }
+
+  // ---- Editor Panel Resize ----
+  editorResizeHandle = document.getElementById('editorResizeHandle');
+  isResizingEditor = false;
+  editorStartWidth = 500;
+  resizeStartX = 0;
+
+  syncPreviewContainerPosition = function syncPreviewContainerPosition() {
+    const previewContainerEl = document.querySelector('.preview-container');
+    if (previewContainerEl && sourceCol) {
+      if (document.body.classList.contains('src-hidden') || sourceCol.style.display === 'none') {
+        previewContainerEl.style.left = '0';
+      } else {
+        const actualRight = sourceCol.getBoundingClientRect().right;
+        previewContainerEl.style.left = (actualRight + 16) + 'px';
       }
     }
+  }
 
-    editorResizeHandle.addEventListener('mousedown', (e) => {
-      isResizingEditor = true;
-      resizeStartX = e.clientX;
-      editorStartWidth = sourceCol.offsetWidth;
-      editorResizeHandle.classList.add('dragging');
-      document.body.style.cursor = 'ew-resize';
-      e.preventDefault();
-    });
+  editorResizeHandle.addEventListener('mousedown', (e) => {
+    isResizingEditor = true;
+    resizeStartX = e.clientX;
+    editorStartWidth = sourceCol.offsetWidth;
+    editorResizeHandle.classList.add('dragging');
+    document.body.style.cursor = 'ew-resize';
+    e.preventDefault();
+  });
 
-    window.addEventListener('mousemove', (e) => {
-      if (!isResizingEditor) return;
-      e.preventDefault();
+  window.addEventListener('mousemove', (e) => {
+    if (!isResizingEditor) return;
+    e.preventDefault();
 
-      const minW = window.innerWidth * 0.35;
-      const maxW = window.innerWidth * 0.60;
+    const minW = window.innerWidth * 0.35;
+    const maxW = window.innerWidth * 0.60;
 
-      let newWidth = editorStartWidth + (e.clientX - resizeStartX);
-      newWidth = Math.max(minW, Math.min(maxW, newWidth));
+    let newWidth = editorStartWidth + (e.clientX - resizeStartX);
+    newWidth = Math.max(minW, Math.min(maxW, newWidth));
 
-      sourceCol.style.width = newWidth + 'px';
-      syncPreviewContainerPosition();
-    });
-
-    window.addEventListener('mouseup', () => {
-      if (isResizingEditor) {
-        isResizingEditor = false;
-        editorResizeHandle.classList.remove('dragging');
-        document.body.style.cursor = '';
-      }
-    });
-
-    window.addEventListener('resize', () => {
-      syncPreviewContainerPosition();
-    });
-
-    // Initial positioning sync
+    sourceCol.style.width = newWidth + 'px';
     syncPreviewContainerPosition();
+  });
 
-    // ---- Fullscreen ----
-    btnFullscreen = document.getElementById('fullscreenBtn');
-    previewContainer = document.querySelector('.preview-container');
-    btnFullscreen.addEventListener('click', () => {
-      if (!document.fullscreenElement) {
-        previewContainer.requestFullscreen().catch(console.error);
-      } else {
-        document.exitFullscreen();
-      }
-    });
-    document.addEventListener('fullscreenchange', () => {
-      const isFs = !!document.fullscreenElement;
-      btnFullscreen.classList.toggle('active', isFs);
-      // Re-fit after the layout resize settles.
-      setTimeout(() => {}, 50);
-    });
+  window.addEventListener('mouseup', () => {
+    if (isResizingEditor) {
+      isResizingEditor = false;
+      editorResizeHandle.classList.remove('dragging');
+      document.body.style.cursor = '';
+    }
+  });
 
-    // ================================================================
-    // SYNTAX HIGHLIGHTING  —  Local regex  |  CDN CodeMirror 6
-    // ================================================================
-    elHlMode = document.getElementById('hlMode');
-    elHlLayer = document.getElementById('hlLayer');
-    textareaWrap = document.getElementById('textareaWrap');
+  window.addEventListener('resize', () => {
+    syncPreviewContainerPosition();
+  });
+
+  // Initial positioning sync
+  syncPreviewContainerPosition();
+
+  // ---- Fullscreen ----
+  btnFullscreen = document.getElementById('fullscreenBtn');
+  previewContainer = document.querySelector('.preview-container');
+  btnFullscreen.addEventListener('click', () => {
+    if (!document.fullscreenElement) {
+      previewContainer.requestFullscreen().catch(console.error);
+    } else {
+      document.exitFullscreen();
+    }
+  });
+  document.addEventListener('fullscreenchange', () => {
+    const isFs = !!document.fullscreenElement;
+    btnFullscreen.classList.toggle('active', isFs);
+    // Re-fit after the layout resize settles.
+    setTimeout(() => { }, 50);
+  });
+
+  // ================================================================
+  // SYNTAX HIGHLIGHTING  —  Local regex  |  CDN CodeMirror 6
+  // ================================================================
+  elHlMode = document.getElementById('hlMode');
+  elHlLayer = document.getElementById('hlLayer');
+  textareaWrap = document.getElementById('textareaWrap');
 
 }
 
 export function initSnippets() {
-    // ---- Snippets Panel ----
-    snippetsContainer = document.getElementById('snippetsContainer');
-    snippetsBtn = document.getElementById('snippetsBtn');
-    snippetsPanel = document.getElementById('snippetsPanel');
+  // ---- Snippets Panel ----
+  snippetsContainer = document.getElementById('snippetsContainer');
+  snippetsBtn = document.getElementById('snippetsBtn');
+  snippetsPanel = document.getElementById('snippetsPanel');
 
-    snippetsBtn.addEventListener('click', () => {
-      snippetsContainer.classList.toggle('expanded');
-    });
+  snippetsBtn.addEventListener('click', () => {
+    snippetsContainer.classList.toggle('expanded');
+  });
 
-    SNIPPETS = [
-      {
-        cat: 'Flowchart shapes', type: 'flowchart', items: [
-          { name: 'Rectangle', icon: '<rect x="4" y="6" width="16" height="12"/>', text: 'id1[Node]' },
-          { name: 'Rounded', icon: '<rect x="4" y="6" width="16" height="12" rx="4"/>', text: 'id1(Node)' },
-          { name: 'Stadium', icon: '<rect x="4" y="6" width="16" height="12" rx="6"/>', text: 'id1([Node])' },
-          { name: 'Subroutine', icon: '<rect x="4" y="6" width="16" height="12"/><line x1="7" y1="6" x2="7" y2="18"/><line x1="17" y1="6" x2="17" y2="18"/>', text: 'id1[[Node]]' },
-          { name: 'Database', icon: '<path d="M4 9c0-1.7 3.6-3 8-3s8 1.3 8 3v6c0 1.7-3.6 3-8 3s-8-1.3-8-3V9z"/><path d="M4 9c0 1.7 3.6 3 8 3s8-1.3 8-3"/>', text: 'id1[(Database)]' },
-          { name: 'Decision', icon: '<polygon points="12 4 20 12 12 20 4 12"/>', text: 'id1{Decision}' },
-          { name: 'Circle', icon: '<circle cx="12" cy="12" r="8"/>', text: 'id1((Circle))' },
-          { name: 'Asymmetric', icon: '<path d="M4 6h12l4 6-4 6H4z"/>', text: 'id1>Asymmetric]' },
-          { name: 'Hexagon', icon: '<polygon points="8 6 16 6 20 12 16 18 8 18 4 12"/>', text: 'id1{{Hexagon}}' },
-          { name: 'Parallelogram', icon: '<polygon points="6 6 20 6 18 18 4 18"/>', text: 'id1[/Parallelogram/]' },
-          { name: 'Parallelogram reversed', icon: '<polygon points="4 6 18 6 20 18 6 18"/>', text: 'id1[\\Parallelogram\\]' },
-          { name: 'Trapezoid', icon: '<polygon points="6 6 18 6 20 18 4 18"/>', text: 'id1[/Trapezoid\\]' },
-          { name: 'Trapezoid reversed', icon: '<polygon points="4 6 20 6 18 18 6 18"/>', text: 'id1[\\Trapezoid/]' },
-          { name: 'Double Circle', icon: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="5"/>', text: 'id1(((Double Circle)))' }
-        ]
-      },
-      {
-        cat: 'Flowchart edges', type: 'flowchart', items: [
-          { name: 'Arrow', icon: '<line x1="4" y1="12" x2="20" y2="12"/><polyline points="14 6 20 12 14 18"/>', text: 'A --> B' },
-          { name: 'Thick Arrow', icon: '<line x1="4" y1="10" x2="18" y2="10"/><line x1="4" y1="14" x2="18" y2="14"/><polyline points="14 6 20 12 14 18"/>', text: 'A ==> B' },
-          { name: 'Dashed arrow', icon: '<line x1="4" y1="12" x2="20" y2="12" stroke-dasharray="4 4"/><polyline points="14 6 20 12 14 18"/>', text: 'A -.-> B' },
-          { name: 'Arrow with Label', icon: '<line x1="4" y1="12" x2="20" y2="12"/><polyline points="14 6 20 12 14 18"/><rect x="10" y="9" width="4" height="6" fill="var(--bg-body)" stroke="none"/>', text: 'A -->|Label| B' },
-          { name: 'Thick Arrow with Label', icon: '<line x1="4" y1="10" x2="18" y2="10"/><line x1="4" y1="14" x2="18" y2="14"/><polyline points="14 6 20 12 14 18"/><rect x="10" y="7" width="4" height="10" fill="var(--bg-body)" stroke="none"/>', text: 'A ==>|Label| B' },
-          { name: 'Dashed arrow with Label', icon: '<line x1="4" y1="12" x2="20" y2="12" stroke-dasharray="4 4"/><polyline points="14 6 20 12 14 18"/><rect x="10" y="9" width="4" height="6" fill="var(--bg-body)" stroke="none"/>', text: 'A -.->|Label| B' }
-        ]
-      },
-      {
-        cat: 'Flowchart other', type: 'flowchart', items: [
-          { name: 'Subgraph', icon: '<rect x="4" y="6" width="16" height="12" rx="2" stroke-dasharray="2 2"/><rect x="6" y="10" width="12" height="6" rx="1"/>', text: 'subgraph Title\n  direction TB\n  node1\nend' },
-          { name: 'Add class to a node', icon: '<rect x="4" y="8" width="16" height="8" rx="2"/><circle cx="20" cy="8" r="3" fill="currentColor"/>', text: 'class id className' },
-          { name: 'Add class definition', icon: '<rect x="4" y="8" width="16" height="8" rx="2" stroke-dasharray="2 2"/><circle cx="20" cy="8" r="3" fill="currentColor"/>', text: 'classDef className fill:#f9f,stroke:#333,stroke-width:4px;' }
-        ]
-      },
-      {
-        cat: 'Sequence diagram actors', type: 'sequence', items: [
-          { name: 'Participant', icon: '<rect x="4" y="6" width="16" height="10" rx="2"/><path d="M12 16v4"/><path d="M8 20h8"/>', text: 'participant Name' },
-          { name: 'Actor', icon: '<circle cx="12" cy="7" r="4"/><path d="M12 11v6"/><path d="M8 21l4-4 4 4"/><path d="M8 15h8"/>', text: 'actor Name' }
-        ]
-      },
-      {
-        cat: 'Sequence diagram notes', type: 'sequence', items: [
-          { name: 'Note left of', icon: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8l3-3m-3 3 3 3"/>', text: 'Note left of Name: text' },
-          { name: 'Note over life line', icon: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="M9 15h6"/>', text: 'Note over Name: text' },
-          { name: 'Note right of', icon: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8l-3-3m3 3-3 3"/>', text: 'Note right of Name: text' }
-        ]
-      },
-      {
-        cat: 'Sequence diagram messages', type: 'sequence', items: [
-          { name: 'Solid Line', icon: '<line x1="4" y1="12" x2="20" y2="12" stroke-width="2"/>', text: 'A->B: message' },
-          { name: 'Dotted Line', icon: '<line x1="4" y1="12" x2="20" y2="12" stroke-width="2" stroke-dasharray="4 4"/>', text: 'A-->B: message' },
-          { name: 'Solid Line Arrow', icon: '<line x1="4" y1="12" x2="20" y2="12" stroke-width="2"/><polyline points="14 6 20 12 14 18"/>', text: 'A->>B: message' },
-          { name: 'Dotted Line Arrow', icon: '<line x1="4" y1="12" x2="20" y2="12" stroke-width="2" stroke-dasharray="4 4"/><polyline points="14 6 20 12 14 18"/>', text: 'A-->>B: message' },
-          { name: 'Solid Line Cross', icon: '<line x1="4" y1="12" x2="20" y2="12" stroke-width="2"/><path d="M16 8l4 8M20 8l-4 8"/>', text: 'A-xB: message' },
-          { name: 'Dotted Line Cross', icon: '<line x1="4" y1="12" x2="20" y2="12" stroke-width="2" stroke-dasharray="4 4"/><path d="M16 8l4 8M20 8l-4 8"/>', text: 'A--xB: message' },
-          { name: 'Solid Line Async', icon: '<line x1="4" y1="12" x2="20" y2="12" stroke-width="2"/><path d="M16 6l4 6-4 6"/>', text: 'A-)B: message' },
-          { name: 'Dotted Line Async', icon: '<line x1="4" y1="12" x2="20" y2="12" stroke-width="2" stroke-dasharray="4 4"/><path d="M16 6l4 6-4 6"/>', text: 'A--)B: message' }
-        ]
-      },
-      {
-        cat: 'Sequence diagram other', type: 'sequence', items: [
-          { name: 'Loop', icon: '<rect x="4" y="6" width="16" height="12" rx="2"/><path d="M4 10h16"/>', text: 'loop text\n  \nend' },
-          { name: 'Alt', icon: '<rect x="4" y="6" width="16" height="12" rx="2"/><path d="M4 12h16"/>', text: 'alt text\n  \nelse text\n  \nend' },
-          { name: 'Opt', icon: '<rect x="4" y="6" width="16" height="12" rx="2"/><path d="M4 10h16"/>', text: 'opt text\n  \nend' },
-          { name: 'Par', icon: '<rect x="4" y="6" width="16" height="12" rx="2"/><path d="M4 12h16"/>', text: 'par text\n  \nand text\n  \nend' },
-          { name: 'Highlight', icon: '<rect x="4" y="6" width="16" height="12" rx="2"/><path d="M4 10h16"/>', text: 'rect rgb(200, 255, 200)\n  \nend' },
-          { name: 'Critical Region', icon: '<rect x="4" y="6" width="16" height="12" rx="2"/><path d="M4 12h16"/>', text: 'critical text\n  \noption text\n  \nend' },
-          { name: 'Break', icon: '<rect x="4" y="6" width="16" height="12" rx="2"/><path d="M4 10h16"/>', text: 'break text\n  \nend' }
-        ]
-      }
-    ];
+  SNIPPETS = [
+    {
+      cat: 'Flowchart shapes', type: 'flowchart', items: [
+        { name: 'Rectangle', icon: '<rect x="4" y="6" width="16" height="12"/>', text: 'id1[Node]' },
+        { name: 'Rounded', icon: '<rect x="4" y="6" width="16" height="12" rx="4"/>', text: 'id1(Node)' },
+        { name: 'Stadium', icon: '<rect x="4" y="6" width="16" height="12" rx="6"/>', text: 'id1([Node])' },
+        { name: 'Subroutine', icon: '<rect x="4" y="6" width="16" height="12"/><line x1="7" y1="6" x2="7" y2="18"/><line x1="17" y1="6" x2="17" y2="18"/>', text: 'id1[[Node]]' },
+        { name: 'Database', icon: '<path d="M4 9c0-1.7 3.6-3 8-3s8 1.3 8 3v6c0 1.7-3.6 3-8 3s-8-1.3-8-3V9z"/><path d="M4 9c0 1.7 3.6 3 8 3s8-1.3 8-3"/>', text: 'id1[(Database)]' },
+        { name: 'Decision', icon: '<polygon points="12 4 20 12 12 20 4 12"/>', text: 'id1{Decision}' },
+        { name: 'Circle', icon: '<circle cx="12" cy="12" r="8"/>', text: 'id1((Circle))' },
+        { name: 'Asymmetric', icon: '<path d="M4 6h12l4 6-4 6H4z"/>', text: 'id1>Asymmetric]' },
+        { name: 'Hexagon', icon: '<polygon points="8 6 16 6 20 12 16 18 8 18 4 12"/>', text: 'id1{{Hexagon}}' },
+        { name: 'Parallelogram', icon: '<polygon points="6 6 20 6 18 18 4 18"/>', text: 'id1[/Parallelogram/]' },
+        { name: 'Parallelogram reversed', icon: '<polygon points="4 6 18 6 20 18 6 18"/>', text: 'id1[\\Parallelogram\\]' },
+        { name: 'Trapezoid', icon: '<polygon points="6 6 18 6 20 18 4 18"/>', text: 'id1[/Trapezoid\\]' },
+        { name: 'Trapezoid reversed', icon: '<polygon points="4 6 20 6 18 18 6 18"/>', text: 'id1[\\Trapezoid/]' },
+        { name: 'Double Circle', icon: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="5"/>', text: 'id1(((Double Circle)))' }
+      ]
+    },
+    {
+      cat: 'Flowchart edges', type: 'flowchart', items: [
+        { name: 'Arrow', icon: '<line x1="4" y1="12" x2="20" y2="12"/><polyline points="14 6 20 12 14 18"/>', text: 'A --> B' },
+        { name: 'Thick Arrow', icon: '<line x1="4" y1="10" x2="18" y2="10"/><line x1="4" y1="14" x2="18" y2="14"/><polyline points="14 6 20 12 14 18"/>', text: 'A ==> B' },
+        { name: 'Dashed arrow', icon: '<line x1="4" y1="12" x2="20" y2="12" stroke-dasharray="4 4"/><polyline points="14 6 20 12 14 18"/>', text: 'A -.-> B' },
+        { name: 'Arrow with Label', icon: '<line x1="4" y1="12" x2="20" y2="12"/><polyline points="14 6 20 12 14 18"/><rect x="10" y="9" width="4" height="6" fill="var(--bg-body)" stroke="none"/>', text: 'A -->|Label| B' },
+        { name: 'Thick Arrow with Label', icon: '<line x1="4" y1="10" x2="18" y2="10"/><line x1="4" y1="14" x2="18" y2="14"/><polyline points="14 6 20 12 14 18"/><rect x="10" y="7" width="4" height="10" fill="var(--bg-body)" stroke="none"/>', text: 'A ==>|Label| B' },
+        { name: 'Dashed arrow with Label', icon: '<line x1="4" y1="12" x2="20" y2="12" stroke-dasharray="4 4"/><polyline points="14 6 20 12 14 18"/><rect x="10" y="9" width="4" height="6" fill="var(--bg-body)" stroke="none"/>', text: 'A -.->|Label| B' }
+      ]
+    },
+    {
+      cat: 'Flowchart other', type: 'flowchart', items: [
+        { name: 'Subgraph', icon: '<rect x="4" y="6" width="16" height="12" rx="2" stroke-dasharray="2 2"/><rect x="6" y="10" width="12" height="6" rx="1"/>', text: 'subgraph Title\n  direction TB\n  node1\nend' },
+        { name: 'Add class to a node', icon: '<rect x="4" y="8" width="16" height="8" rx="2"/><circle cx="20" cy="8" r="3" fill="currentColor"/>', text: 'class id className' },
+        { name: 'Add class definition', icon: '<rect x="4" y="8" width="16" height="8" rx="2" stroke-dasharray="2 2"/><circle cx="20" cy="8" r="3" fill="currentColor"/>', text: 'classDef className fill:#f9f,stroke:#333,stroke-width:4px;' }
+      ]
+    },
+    {
+      cat: 'Sequence diagram actors', type: 'sequence', items: [
+        { name: 'Participant', icon: '<rect x="4" y="6" width="16" height="10" rx="2"/><path d="M12 16v4"/><path d="M8 20h8"/>', text: 'participant Name' },
+        { name: 'Actor', icon: '<circle cx="12" cy="7" r="4"/><path d="M12 11v6"/><path d="M8 21l4-4 4 4"/><path d="M8 15h8"/>', text: 'actor Name' }
+      ]
+    },
+    {
+      cat: 'Sequence diagram notes', type: 'sequence', items: [
+        { name: 'Note left of', icon: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8l3-3m-3 3 3 3"/>', text: 'Note left of Name: text' },
+        { name: 'Note over life line', icon: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="M9 15h6"/>', text: 'Note over Name: text' },
+        { name: 'Note right of', icon: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8l-3-3m3 3-3 3"/>', text: 'Note right of Name: text' }
+      ]
+    },
+    {
+      cat: 'Sequence diagram messages', type: 'sequence', items: [
+        { name: 'Solid Line', icon: '<line x1="4" y1="12" x2="20" y2="12" stroke-width="2"/>', text: 'A->B: message' },
+        { name: 'Dotted Line', icon: '<line x1="4" y1="12" x2="20" y2="12" stroke-width="2" stroke-dasharray="4 4"/>', text: 'A-->B: message' },
+        { name: 'Solid Line Arrow', icon: '<line x1="4" y1="12" x2="20" y2="12" stroke-width="2"/><polyline points="14 6 20 12 14 18"/>', text: 'A->>B: message' },
+        { name: 'Dotted Line Arrow', icon: '<line x1="4" y1="12" x2="20" y2="12" stroke-width="2" stroke-dasharray="4 4"/><polyline points="14 6 20 12 14 18"/>', text: 'A-->>B: message' },
+        { name: 'Solid Line Cross', icon: '<line x1="4" y1="12" x2="20" y2="12" stroke-width="2"/><path d="M16 8l4 8M20 8l-4 8"/>', text: 'A-xB: message' },
+        { name: 'Dotted Line Cross', icon: '<line x1="4" y1="12" x2="20" y2="12" stroke-width="2" stroke-dasharray="4 4"/><path d="M16 8l4 8M20 8l-4 8"/>', text: 'A--xB: message' },
+        { name: 'Solid Line Async', icon: '<line x1="4" y1="12" x2="20" y2="12" stroke-width="2"/><path d="M16 6l4 6-4 6"/>', text: 'A-)B: message' },
+        { name: 'Dotted Line Async', icon: '<line x1="4" y1="12" x2="20" y2="12" stroke-width="2" stroke-dasharray="4 4"/><path d="M16 6l4 6-4 6"/>', text: 'A--)B: message' }
+      ]
+    },
+    {
+      cat: 'Sequence diagram other', type: 'sequence', items: [
+        { name: 'Loop', icon: '<rect x="4" y="6" width="16" height="12" rx="2"/><path d="M4 10h16"/>', text: 'loop text\n  \nend' },
+        { name: 'Alt', icon: '<rect x="4" y="6" width="16" height="12" rx="2"/><path d="M4 12h16"/>', text: 'alt text\n  \nelse text\n  \nend' },
+        { name: 'Opt', icon: '<rect x="4" y="6" width="16" height="12" rx="2"/><path d="M4 10h16"/>', text: 'opt text\n  \nend' },
+        { name: 'Par', icon: '<rect x="4" y="6" width="16" height="12" rx="2"/><path d="M4 12h16"/>', text: 'par text\n  \nand text\n  \nend' },
+        { name: 'Highlight', icon: '<rect x="4" y="6" width="16" height="12" rx="2"/><path d="M4 10h16"/>', text: 'rect rgb(200, 255, 200)\n  \nend' },
+        { name: 'Critical Region', icon: '<rect x="4" y="6" width="16" height="12" rx="2"/><path d="M4 12h16"/>', text: 'critical text\n  \noption text\n  \nend' },
+        { name: 'Break', icon: '<rect x="4" y="6" width="16" height="12" rx="2"/><path d="M4 10h16"/>', text: 'break text\n  \nend' }
+      ]
+    }
+  ];
 
-    snippetsHtml = '';
-    for (const cat of SNIPPETS) {
-      if (typeof CONFIG !== 'undefined' && CONFIG.allowedDiagramTypes && cat.type !== 'all') {
-        const allowed = CONFIG.allowedDiagramTypes;
-        const matchesType = allowed.includes(cat.type) ||
-          (cat.type === 'sequence' && allowed.includes('sequenceDiagram')) ||
-          (cat.type === 'sequenceDiagram' && allowed.includes('sequence'));
-        if (!matchesType) continue;
-      }
-      const typeAttr = cat.type || 'all';
-      snippetsHtml += `<div class="snippet-category" data-type="${typeAttr}">${cat.cat}</div><div class="snippet-grid" data-type="${typeAttr}">`;
-      for (const item of cat.items) {
-        const svg = `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${item.icon}</svg>`;
-        const copySvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
-        const insertSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>`;
-        snippetsHtml += `<div class="snippet-btn" data-text="${encodeURIComponent(item.text)}">
+  snippetsHtml = '';
+  for (const cat of SNIPPETS) {
+    const typeAttr = cat.type || 'all';
+    snippetsHtml += `<div class="snippet-category" data-type="${typeAttr}">${cat.cat}</div><div class="snippet-grid" data-type="${typeAttr}">`;
+    for (const item of cat.items) {
+      const svg = `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${item.icon}</svg>`;
+      const copySvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
+      const insertSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>`;
+      snippetsHtml += `<div class="snippet-btn" data-text="${encodeURIComponent(item.text)}">
           <div class="snippet-label">${svg}${item.name}</div>
           <div class="snippet-actions">
             <button class="action-btn action-copy" title="Copy to clipboard">${copySvg}</button>
             <button class="action-btn action-insert" title="Insert snippet">${insertSvg}</button>
           </div>
         </div>`;
-      }
-      snippetsHtml += `</div>`;
     }
-    snippetsHtml += `<div class="no-snippets-msg" style="padding: 1rem; color: var(--text-muted); text-align: center; width: 100%; display: none;">No snippets available for this diagram type.</div>`;
-    snippetsPanel.innerHTML = snippetsHtml;
+    snippetsHtml += `</div>`;
+  }
+  snippetsHtml += `<div class="no-snippets-msg" style="padding: 1rem; color: var(--text-muted); text-align: center; width: 100%; display: none;">No snippets available for this diagram type.</div>`;
+  snippetsPanel.innerHTML = snippetsHtml;
 
-    updateSnippetsVisibility = function updateSnippetsVisibility() {
-      const src = elSrc.value.trim();
-      const cleanSrc = src.replace(/^---[\s\S]*?---\s*/, '');
-      let currentType = 'other';
-      if (/^(flowchart|graph)\b/i.test(cleanSrc)) currentType = 'flowchart';
-      else if (/^sequenceDiagram\b/i.test(cleanSrc)) currentType = 'sequence';
-      else if (/^classDiagram\b/i.test(cleanSrc)) currentType = 'class';
-      else if (/^stateDiagram\b/i.test(cleanSrc)) currentType = 'state';
-      else if (/^erDiagram\b/i.test(cleanSrc)) currentType = 'er';
-      else if (/^gantt\b/i.test(cleanSrc)) currentType = 'gantt';
-      else if (/^pie\b/i.test(cleanSrc)) currentType = 'pie';
-      else if (/^gitGraph\b/i.test(cleanSrc)) currentType = 'git';
-      else if (/^mindmap\b/i.test(cleanSrc)) currentType = 'mindmap';
-      else if (elType && elType.value) {
-        currentType = elType.value;
-      }
-
-      if (diagramTypeBadge) {
-        diagramTypeBadge.textContent = DIAGRAMS[elType.value]?.label || 'Diagram';
-      }
-
-      const fcTools = document.getElementById('flowchartTools');
-      if (fcTools) fcTools.style.display = (currentType === 'flowchart') ? 'flex' : 'none';
-
-      let hasVisible = false;
-      const children = snippetsPanel.children;
-      for (let i = 0; i < children.length; i++) {
-        const el = children[i];
-        if (el.classList.contains('no-snippets-msg')) {
-          el.style.display = hasVisible ? 'none' : 'block';
-          continue;
-        }
-        const type = el.getAttribute('data-type');
-        if (type === currentType || type === 'all') {
-          el.style.display = '';
-          if (el.classList.contains('snippet-grid')) hasVisible = true;
-        } else {
-          el.style.display = 'none';
-        }
-      }
+  updateSnippetsVisibility = function updateSnippetsVisibility() {
+    const src = elSrc.value.trim();
+    const cleanSrc = src.replace(/^---[\s\S]*?---\s*/, '');
+    let currentType = 'other';
+    if (/^(flowchart|graph)\b/i.test(cleanSrc)) currentType = 'flowchart';
+    else if (/^sequenceDiagram\b/i.test(cleanSrc)) currentType = 'sequence';
+    else if (/^classDiagram\b/i.test(cleanSrc)) currentType = 'class';
+    else if (/^stateDiagram\b/i.test(cleanSrc)) currentType = 'state';
+    else if (/^erDiagram\b/i.test(cleanSrc)) currentType = 'er';
+    else if (/^gantt\b/i.test(cleanSrc)) currentType = 'gantt';
+    else if (/^pie\b/i.test(cleanSrc)) currentType = 'pie';
+    else if (/^gitGraph\b/i.test(cleanSrc)) currentType = 'git';
+    else if (/^mindmap\b/i.test(cleanSrc)) currentType = 'mindmap';
+    else if (elType && elType.value) {
+      currentType = elType.value;
     }
 
-    elSrc.addEventListener('input', updateSnippetsVisibility);
-    if (elType) elType.addEventListener('change', updateSnippetsVisibility);
-    updateSnippetsVisibility(); // initialize on load
+    if (diagramTypeBadge) {
+      diagramTypeBadge.textContent = DIAGRAMS[elType.value]?.label || 'Diagram';
+    }
 
-    snippetsPanel.addEventListener('click', async (e) => {
-      const btn = e.target.closest('.snippet-btn');
-      if (!btn) return;
-      let text = decodeURIComponent(btn.getAttribute('data-text') || '');
-      text = text.replace(/\n+$/, '');
+    const fcTools = document.getElementById('flowchartTools');
+    if (fcTools) fcTools.style.display = (currentType === 'flowchart') ? 'flex' : 'none';
 
-      if (e.target.closest('.action-copy')) {
-        try {
-          await navigator.clipboard.writeText(text.trim());
-        } catch (e) { }
-        return;
+    let hasVisible = false;
+    const children = snippetsPanel.children;
+    for (let i = 0; i < children.length; i++) {
+      const el = children[i];
+      if (el.classList.contains('no-snippets-msg')) {
+        el.style.display = hasVisible ? 'none' : 'block';
+        continue;
       }
+      const type = el.getAttribute('data-type');
+      if (type === currentType || type === 'all') {
+        el.style.display = '';
+        if (el.classList.contains('snippet-grid')) hasVisible = true;
+      } else {
+        el.style.display = 'none';
+      }
+    }
+  }
 
-      // Insert text at cursor without forcing extra trailing newline
-      elSrc.focus();
-      const start = elSrc.selectionStart;
-      const end = elSrc.selectionEnd;
-      elSrc.setRangeText(text, start, end, 'end');
-      elSrc.dispatchEvent(new Event('input'));
-    });
+  elSrc.addEventListener('input', updateSnippetsVisibility);
+  if (elType) elType.addEventListener('change', updateSnippetsVisibility);
+  updateSnippetsVisibility(); // initialize on load
+
+  snippetsPanel.addEventListener('click', async (e) => {
+    const btn = e.target.closest('.snippet-btn');
+    if (!btn) return;
+    let text = decodeURIComponent(btn.getAttribute('data-text') || '');
+    text = text.replace(/\n+$/, '');
+
+    if (e.target.closest('.action-copy')) {
+      try {
+        await navigator.clipboard.writeText(text.trim());
+      } catch (e) { }
+      return;
+    }
+
+    // Insert text at cursor without forcing extra trailing newline
+    elSrc.focus();
+    const start = elSrc.selectionStart;
+    const end = elSrc.selectionEnd;
+    elSrc.setRangeText(text, start, end, 'end');
+    elSrc.dispatchEvent(new Event('input'));
+  });
 
 }
 
@@ -631,7 +546,7 @@ export function getMessagesInLoop(loopNode) {
       const offY = getSVGOffset(el);
       minY = Math.min(minY, offY + b.y);
       maxY = Math.max(maxY, offY + b.y + b.height);
-    } catch (e) {}
+    } catch (e) { }
   });
 
   const messages = Array.from(svg.querySelectorAll('.messageText, .noteText, .edgeLabel'));
@@ -681,7 +596,7 @@ export function highlightDiagramNode(node) {
           if (Math.abs(elCx - cx) < 30) {
             elementsToBound.push(el);
           }
-        } catch (e) {}
+        } catch (e) { }
       });
     }
   } else if (isLoop) {
@@ -722,7 +637,7 @@ export function highlightDiagramNode(node) {
       minY = Math.min(minY, y1);
       maxX = Math.max(maxX, x2);
       maxY = Math.max(maxY, y2);
-    } catch (e) {}
+    } catch (e) { }
   });
 
   if (!isFinite(minX) || !isFinite(minY)) return;
@@ -770,7 +685,7 @@ export function highlightDiagramNodeByText(lineText, occurrenceIndex = 0) {
   }
 
   // 2. Loop / Alt / Opt / Par block
-  const loopMatch = trimmed.match(/^(?:loop|alt|else|opt|par|critical|break|rect)\b\s*(.*)/i);
+  const loopMatch = trimmed.match(/^(?:loop|alt|else|opt|par|critical|break)\b\s*(.*)/i);
   if (loopMatch) {
     const label = loopMatch[1].trim();
     const loopGroups = Array.from(svg.querySelectorAll('.loopLine, .loopText, .labelText')).reduce((acc, el) => {
@@ -778,15 +693,25 @@ export function highlightDiagramNodeByText(lineText, occurrenceIndex = 0) {
       if (!acc.includes(g)) acc.push(g);
       return acc;
     }, []);
-    
+
     const matchedLoops = loopGroups.filter(g => {
       if (!label) return true;
       const txt = (g.textContent || '').trim();
       return txt.includes(label) || txt.replace(/^\[|\]$/g, '').trim() === label;
     });
-    
+
     if (matchedLoops.length > 0) {
       highlightDiagramNode(matchedLoops[Math.min(occurrenceIndex, matchedLoops.length - 1)]);
+      return;
+    }
+  }
+
+  // 2b. Rect block
+  const rectMatch = trimmed.match(/^rect\b\s*(.*)/i);
+  if (rectMatch) {
+    const rectEls = Array.from(svg.querySelectorAll('rect.rect'));
+    if (rectEls.length > 0) {
+      highlightDiagramNode(rectEls[Math.min(occurrenceIndex, rectEls.length - 1)]);
       return;
     }
   }
@@ -909,7 +834,7 @@ export function initInteractiveSelection() {
     let lineEnd = val.indexOf('\n', pos);
     if (lineEnd === -1) lineEnd = val.length;
     let lineText = val.substring(lineStart, lineEnd).trim();
-    
+
     let searchLimit = lineStart;
 
     if (/^\s*end\s*$/i.test(lineText)) {
@@ -960,6 +885,13 @@ export function initInteractiveSelection() {
 
       const targetGroup = node.closest?.('g') || node;
 
+      const isRectElement = !!(
+        (node.tagName?.toLowerCase() === 'rect' && node.classList?.contains('rect')) ||
+        node.classList?.contains('rect') ||
+        targetGroup.classList?.contains('rect') ||
+        targetGroup.querySelector?.('rect.rect')
+      );
+
       const isLoopElement = !!(
         node.classList?.contains('loopLine') || node.classList?.contains('loopText') ||
         node.classList?.contains('labelText') || node.classList?.contains('labelBox') ||
@@ -969,12 +901,32 @@ export function initInteractiveSelection() {
       const sourceText = elSrc.value;
       let startIndex = -1;
 
-      if (isLoopElement) {
+      if (isRectElement) {
+        const allRects = Array.from(svg.querySelectorAll('rect.rect'));
+        let svgOccurrenceIndex = 0;
+        for (let i = 0; i < allRects.length; i++) {
+          if (allRects[i] === targetGroup || allRects[i] === node || allRects[i].contains(node)) {
+            svgOccurrenceIndex = i;
+            break;
+          }
+        }
+
+        const rectLine = /^\s*rect\b/igm;
+        let matchCount = 0;
+        let m;
+        while ((m = rectLine.exec(sourceText)) !== null) {
+          if (matchCount === svgOccurrenceIndex) {
+            startIndex = m.index;
+            break;
+          }
+          matchCount++;
+        }
+      } else if (isLoopElement) {
         const loopTextEl = targetGroup.querySelector('.loopText');
         const labelEl = targetGroup.querySelector('.labelText');
         const keyword = labelEl ? labelEl.textContent.trim() : 'loop';
         const loopLabel = loopTextEl ? loopTextEl.textContent.replace(/^\[|\]$/g, '').trim() : '';
-        
+
         const loopGroups = Array.from(svg.querySelectorAll('.loopLine, .loopText, .labelText')).reduce((acc, el) => {
           const g = el.closest ? (el.closest('g') || el) : el;
           if (!acc.includes(g)) acc.push(g);
@@ -1000,7 +952,7 @@ export function initInteractiveSelection() {
         const loopLine = loopLabel
           ? new RegExp(`^\\s*${keyword}\\s+${loopLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`, 'igm')
           : new RegExp(`^\\s*${keyword}\\b`, 'igm');
-        
+
         let matchCount = 0;
         let m;
         while ((m = loopLine.exec(sourceText)) !== null) {
@@ -1010,7 +962,7 @@ export function initInteractiveSelection() {
           }
           matchCount++;
         }
-        
+
         if (startIndex === -1) {
           loopLine.lastIndex = 0;
           m = loopLine.exec(sourceText);
@@ -1108,8 +1060,84 @@ export function initExportModal() {
 
   let selectedBg = 'transparent';
 
+  const showCodePreview = () => {
+    if (!exportPreviewBox) return;
+    exportPreviewBox.style.display = 'block';
+    exportPreviewBox.style.padding = '0';
+    exportPreviewBox.style.background = 'var(--bg-editor)';
+    
+    const lines = elSrc.value.split('\n');
+    const gutterHtml = lines.map((_, i) => `<div style="height: var(--editor-line-height, 20px); line-height: var(--editor-line-height, 20px);">${i + 1}</div>`).join('');
+
+    exportPreviewBox.innerHTML = `
+      <div style="
+        display: flex;
+        position: relative;
+        width: 100%;
+        height: 100%;
+        overflow: auto;
+        box-sizing: border-box;
+        background: var(--bg-editor);
+        padding: 0;
+        align-items: stretch;
+        justify-content: flex-start;
+      ">
+        <div style="
+          position: sticky;
+          left: 0;
+          flex: 0 0 auto;
+          width: 3.5em;
+          padding: 1.5rem 0.6rem 1.5rem 0;
+          text-align: right;
+          font-family: ui-monospace, 'SFMono-Regular', Consolas, monospace;
+          font-size: 0.85rem;
+          line-height: var(--editor-line-height, 20px);
+          color: var(--text-gutter);
+          background: var(--bg-gutter);
+          border-right: 1px solid var(--border-color);
+          user-select: none;
+          box-sizing: border-box;
+          z-index: 2;
+        ">
+          ${gutterHtml}
+        </div>
+        <pre style="
+          flex: 1 1 auto;
+          margin: 0;
+          padding: 1.5rem;
+          font-family: ui-monospace, 'SFMono-Regular', Consolas, monospace;
+          font-size: 0.85rem;
+          color: var(--text-main);
+          white-space: pre;
+          word-break: normal;
+          overflow: visible;
+          box-sizing: border-box;
+          text-align: left;
+          line-height: var(--editor-line-height, 20px);
+        ">${elSrc.value}</pre>
+      </div>
+    `;
+  };
+
+  const showSvgPreview = () => {
+    if (!exportPreviewBox) return;
+    exportPreviewBox.style.display = 'flex';
+    exportPreviewBox.style.alignItems = 'center';
+    exportPreviewBox.style.justifyContent = 'center';
+    exportPreviewBox.style.padding = '3rem';
+    
+    const svg = document.querySelector('#target svg');
+    exportPreviewBox.innerHTML = svg ? svg.outerHTML : '';
+    updatePreviewBackground();
+  };
+
   const updatePreviewBackground = () => {
     if (!exportPreviewBox) return;
+    const selectedFormat = document.querySelector('input[name="exportFormat"]:checked')?.value || 'png';
+    if (selectedFormat === 'mmd') {
+      exportPreviewBox.style.background = 'var(--bg-editor)';
+      return;
+    }
     if (selectedBg === 'transparent') {
       exportPreviewBox.style.background = 'repeating-conic-gradient(#ccc 0% 25%, white 0% 50%) 50% / 10px 10px';
     } else {
@@ -1125,10 +1153,11 @@ export function initExportModal() {
     exportMenuBtn.addEventListener('click', () => {
       const activeSwatch = document.querySelector('.bg-swatch.active');
       selectedBg = activeSwatch ? (activeSwatch.getAttribute('data-bg') || 'transparent') : 'transparent';
-      if (exportPreviewBox) {
-        const svg = document.querySelector('#target svg');
-        exportPreviewBox.innerHTML = svg ? svg.outerHTML : '';
-        updatePreviewBackground();
+      const selectedFormat = document.querySelector('input[name="exportFormat"]:checked')?.value || 'png';
+      if (selectedFormat === 'mmd') {
+        showCodePreview();
+      } else {
+        showSvgPreview();
       }
       exportModalOverlay.style.display = 'flex';
     });
@@ -1164,7 +1193,14 @@ export function initExportModal() {
       formatOptions.forEach(o => o.classList.remove('active'));
       opt.classList.add('active');
       const radio = opt.querySelector('input[type="radio"]');
-      if (radio) radio.checked = true;
+      if (radio) {
+        radio.checked = true;
+        if (radio.value === 'mmd') {
+          showCodePreview();
+        } else {
+          showSvgPreview();
+        }
+      }
     });
   });
 
@@ -1192,7 +1228,15 @@ export function initExportModal() {
 
       const svgData = new XMLSerializer().serializeToString(svgToExport);
 
-      if (selectedFormat === 'svg') {
+      if (selectedFormat === 'mmd') {
+        const blob = new Blob([elSrc.value], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'diagram.mmd';
+        a.click();
+        URL.revokeObjectURL(url);
+      } else if (selectedFormat === 'svg') {
         const blob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');

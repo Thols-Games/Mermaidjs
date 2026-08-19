@@ -9,8 +9,22 @@ import { validateSequenceDiagram } from './validators/sequence-validator.js';
 export const editorErrorLines = new Set();
 export const editorWarningLines = new Set();
 
-import { getSeqPalette } from './palettes.js';
-import { currentPaletteName, isPaletteReversed } from './renderer.js';
+import { getSeqPalette, currentPaletteName, isPaletteReversed } from './palettes.js';
+
+// ─── Module-level cache & state ───────────────────────────────────────────────
+// DOM reference cache — populated lazily on first use
+let _elSrc = null, _elHlLayer = null, _elGutter = null, _elHlMode = null;
+// Dirty-line diffing state
+let _prevSyncLines = null;   // string[] snapshot of last rendered lines
+let _prevActiveIndex = -1;   // active line index from last syncLocalHL
+let _prevErrKey = '';         // serialised error/warning fingerprint
+// Memoised colour-map state
+let _prevColorMapKey = '', _prevColorMap = new Map();
+// Gutter rebuild caching
+let _prevGutterLineCount = 0, _prevGutterErrKey = '';
+// Active-line bar geometry cache (invalidated only when --editor-font-size changes)
+let _barMetrics = null, _barFontKey = null;
+// ──────────────────────────────────────────────────────────────────────────────
 
 export function buildAliasColorMap(sourceText, seqPalette) {
   const map = new Map();
@@ -52,6 +66,9 @@ export function buildAliasColorMap(sourceText, seqPalette) {
 const _DKW = 'sequenceDiagram|flowchart|graph|classDiagram|stateDiagram-v2|stateDiagram|erDiagram|gantt|pie|gitGraph|mindmap|quadrantChart|timeline|zenuml|requirementDiagram|sankey-beta|block-beta|architecture-beta|C4Context|kanban|xychart-beta|packet-beta';
 const _BKW = 'participant|actor|autonumber|title|subgraph|end|note|over|left of|right of|alt|else|opt|loop|par|and|rect|class|style|linkStyle|click|callback|classDef';
 
+// Pre-compiled RGB regex — safe to share across .replace() calls (.replace resets lastIndex internally)
+const RGB_REGEX = /rgba?\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*(?:,\s*[0-9.]+\s*)?\)/gi;
+
 function _escHtml(s) {
   return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
@@ -62,8 +79,90 @@ function replaceOutsideTags(html, regex, replacement) {
   ).join('');
 }
 
-export function highlightLine(line, actorColorMap = new Map()) {
+export function rgbToHex(r, g, b) {
+  const toHex = (c) => {
+    const hex = Math.max(0, Math.min(255, c)).toString(16);
+    return hex.length === 1 ? '0' + hex : hex;
+  };
+  return '#' + toHex(r) + toHex(g) + toHex(b);
+}
+
+export function parseRgb(str) {
+  const m = str.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([0-9.]+)\s*)?\)/i);
+  if (!m) return null;
+  return {
+    r: parseInt(m[1], 10),
+    g: parseInt(m[2], 10),
+    b: parseInt(m[3], 10),
+    a: m[4] !== undefined ? parseFloat(m[4]) : null,
+    isRgba: str.toLowerCase().startsWith('rgba')
+  };
+}
+
+export function hexToRgb(hex, alpha = null) {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  if (alpha !== null) {
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
+export function updateCodeColor(lineIndex, matchIndex, newHex, skipSync = false) {
+  if (!_elSrc) _elSrc = document.getElementById('source');
+  const elSrc = _elSrc;
+  if (!elSrc) return;
+  const lines = elSrc.value.split('\n');
+  const line = lines[lineIndex];
+  if (line === undefined) return;
+
+  let currentMatch = 0;
+  RGB_REGEX.lastIndex = 0;
+  const updatedLine = line.replace(RGB_REGEX, (match) => {
+    if (currentMatch === matchIndex) {
+      const parsed = parseRgb(match);
+      const replacement = hexToRgb(newHex, parsed ? parsed.a : null);
+      currentMatch++;
+      return replacement;
+    }
+    currentMatch++;
+    return match;
+  });
+
+  lines[lineIndex] = updatedLine;
+  
+  const selStart = elSrc.selectionStart;
+  const selEnd = elSrc.selectionEnd;
+
+  elSrc.value = lines.join('\n');
+  
+  if (skipSync) {
+    if (typeof window !== 'undefined' && typeof window.renderOne === 'function') {
+      window.renderOne(elSrc.value);
+    }
+  } else {
+    elSrc.setSelectionRange(selStart, selEnd);
+    syncLocalHL();
+    elSrc.dispatchEvent(new Event('input'));
+  }
+}
+
+export function highlightLine(line, actorColorMap = new Map(), lineIndex = 0) {
   let s = _escHtml(line);
+
+  let matchIndex = 0;
+  RGB_REGEX.lastIndex = 0;
+  s = s.replace(RGB_REGEX, (match) => {
+    const parsed = parseRgb(match);
+    if (parsed) {
+      const hex = rgbToHex(parsed.r, parsed.g, parsed.b);
+      const pickerHtml = `<input type="color" class="inline-color-picker" data-line="${lineIndex}" data-match-index="${matchIndex}" value="${hex}">`;
+      matchIndex++;
+      return `<span class="hl-rgb-wrapper"><span class="inline-color-picker-slot">${pickerHtml}</span><span class="hl-rgb-text">${match}</span></span>`;
+    }
+    return match;
+  });
 
   const cm = s.match(/^(\s*)(%%.*)/);
   if (cm) return cm[1] + '<span class="hl-comment">' + cm[2] + '</span>';
@@ -89,7 +188,8 @@ export function highlightLine(line, actorColorMap = new Map()) {
 }
 
 export function updateTextareaActiveBg(lineNumber) {
-  const elSrc = document.getElementById('source');
+  if (!_elSrc) _elSrc = document.getElementById('source');
+  const elSrc = _elSrc;
   if (!elSrc) return;
   const textareaWrap = elSrc.parentElement;
   if (!textareaWrap) return;
@@ -112,26 +212,47 @@ export function updateTextareaActiveBg(lineNumber) {
   }
 
   activeBg.style.display = 'block';
-  activeBg.style.setProperty('--line-index', currentLineNumber - 1);
-  activeBg.style.transform = `translateY(-${elSrc.scrollTop}px)`;
+
+  // Derive the bar geometry from the textarea's REAL, computed metrics instead
+  // of the hardcoded `0.6rem` top offset and `--editor-line-height` calc. The
+  // textarea's `paddingTop` and `lineHeight` are exactly the values the browser
+  // uses to lay out the text, so the bar now tracks it 1:1 — without the
+  // per-line drift that previously grew with line number (sub-pixel rounding of
+  // the calc, or any future border/padding change on the textarea).
+  //
+  // Geometry only changes when the text-size slider sets `--editor-font-size`
+  // (it drives `--editor-line-height`; paddingTop is constant `.6rem`). So we
+  // cache the metrics and only re-run getComputedStyle (a style flush) when that
+  // custom property changes — not on every keystroke/cursor move.
+  const fontKey = document.documentElement.style.getPropertyValue('--editor-font-size') || '';
+  if (!_barMetrics || fontKey !== _barFontKey) {
+    const cs = getComputedStyle(elSrc);
+    _barMetrics = {
+      paddingTop: parseFloat(cs.paddingTop) || 0,
+      lineHeight: parseFloat(cs.lineHeight) || (parseFloat(cs.fontSize) || 13.12) * 1.5
+    };
+    _barFontKey = fontKey;
+  }
+  const { paddingTop, lineHeight } = _barMetrics;
+
+  // barY = textOrigin + (lineIndex * lineHeight) - currentScroll
+  activeBg.style.top = (paddingTop + (currentLineNumber - 1) * lineHeight - elSrc.scrollTop) + 'px';
+  activeBg.style.height = lineHeight + 'px';
 }
 
 export function syncLocalHL() {
-  const elSrc = document.getElementById('source');
-  const elHlLayer = document.getElementById('hlLayer');
-  const elHlMode = document.getElementById('hlMode');
+  if (!_elSrc) _elSrc = document.getElementById('source');
+  if (!_elHlLayer) _elHlLayer = document.getElementById('hlLayer');
+  if (!_elHlMode) _elHlMode = document.getElementById('hlMode');
+  const elSrc = _elSrc, elHlLayer = _elHlLayer, elHlMode = _elHlMode;
   if (!elSrc || !elHlLayer) return;
 
   const lines = elSrc.value.split('\n');
   const cursorIndex = elSrc.selectionStart || 0;
-  let activeLineIndex = 0;
-  let accumulatedLength = 0;
+  let activeLineIndex = 0, acc = 0;
   for (let i = 0; i < lines.length; i++) {
-    accumulatedLength += lines[i].length + 1;
-    if (cursorIndex < accumulatedLength) {
-      activeLineIndex = i;
-      break;
-    }
+    acc += lines[i].length + 1;
+    if (cursorIndex < acc) { activeLineIndex = i; break; }
   }
 
   updateTextareaActiveBg(activeLineIndex + 1);
@@ -141,27 +262,77 @@ export function syncLocalHL() {
     elHlLayer.innerHTML = '';
     elHlLayer.style.display = 'none';
     elSrc.classList.remove('hl-on');
+    _prevSyncLines = null;
     return;
   }
 
   elHlLayer.style.display = 'block';
   elSrc.classList.add('hl-on');
 
-  const seqPalette = getSeqPalette(currentPaletteName(), isPaletteReversed());
-  const actorColorMap = buildAliasColorMap(elSrc.value, seqPalette);
+  // Skip DOM rebuild while a color picker is actively open (dragging circle/slider)
+  if (window._colorPickerActive) return;
 
-  elHlLayer.innerHTML = lines.map((line, i) => {
-    let hl = highlightLine(line, actorColorMap);
-    const isErr = (window.hlErrorLines && window.hlErrorLines.has(i)) || editorErrorLines.has(i + 1);
-    const isActive = i === activeLineIndex;
-    const classes = ['hl-line'];
-    if (isActive) classes.push('hl-active-line');
-    if (isErr) classes.push('hl-error-line');
-    return `<div class="${classes.join(' ')}">${hl || ' '}</div>`;
-  }).join('');
+  // Memoised colour-map — rebuilt only when source or palette actually changes
+  const cmKey = elSrc.value + '\0' + currentPaletteName() + '\0' + isPaletteReversed();
+  const colorMapChanged = cmKey !== _prevColorMapKey;
+  if (colorMapChanged) {
+    _prevColorMap = buildAliasColorMap(elSrc.value, getSeqPalette(currentPaletteName(), isPaletteReversed()));
+    _prevColorMapKey = cmKey;
+  }
+  const actorColorMap = _prevColorMap;
 
-  elHlLayer.scrollTop = elSrc.scrollTop;
-  elHlLayer.scrollLeft = elSrc.scrollLeft;
+  // Error/warning state fingerprint
+  const errKey = (window.hlErrorLines ? [...window.hlErrorLines].join(',') : '') +
+    '|' + [...editorErrorLines].join(',');
+  const errChanged = errKey !== _prevErrKey;
+
+  const prevLines = _prevSyncLines;
+  const lineCountChanged = !prevLines || prevLines.length !== lines.length;
+
+  if (lineCountChanged || colorMapChanged) {
+    // Full rebuild: first render, line count changed, or palette/theme changed.
+    // Lines live inside a single .hl-content wrapper so the whole block can be
+    // translated by the textarea's exact scroll pixels (see scroll sync below).
+    elHlLayer.innerHTML = '<div class="hl-content">' + lines.map((line, i) => {
+      const hl = highlightLine(line, actorColorMap, i);
+      const isErr = (window.hlErrorLines && window.hlErrorLines.has(i)) || editorErrorLines.has(i + 1);
+      const isActive = i === activeLineIndex;
+      return `<div class="hl-line${isActive ? ' hl-active-line' : ''}${isErr ? ' hl-error-line' : ''}">${hl || ' '}</div>`;
+    }).join('') + '</div>';
+  } else {
+    // Incremental update: only touch lines whose content or state changed
+    const children = elHlLayer.firstElementChild ? elHlLayer.firstElementChild.children : [];
+    for (let i = 0; i < lines.length; i++) {
+      const lineChanged = prevLines[i] !== lines[i];
+      const isActive = i === activeLineIndex;
+      const wasActive = i === _prevActiveIndex;
+      const activeChanged = isActive !== wasActive;
+      const isErr = (window.hlErrorLines && window.hlErrorLines.has(i)) || editorErrorLines.has(i + 1);
+
+      if (!lineChanged && !activeChanged && !errChanged) continue;
+
+      const el = children[i];
+      if (!el) continue;
+
+      if (lineChanged) {
+        el.innerHTML = highlightLine(lines[i], actorColorMap, i) || ' ';
+      }
+      el.className = 'hl-line' + (isActive ? ' hl-active-line' : '') + (isErr ? ' hl-error-line' : '');
+    }
+  }
+
+  _prevSyncLines = lines.slice();
+  _prevActiveIndex = activeLineIndex;
+  _prevErrKey = errKey;
+
+  // Scroll sync: translate the content wrapper by the textarea's exact scroll
+  // pixels. Because the hl-layer is now a non-scrolling viewport (overflow:
+  // hidden) sharing the textarea's coordinate space, the highlight stays locked
+  // to the text regardless of scrollbar geometry — no two-scroll-container drift.
+  const hlContent = elHlLayer.firstElementChild;
+  if (hlContent) {
+    hlContent.style.transform = `translate(${-elSrc.scrollLeft}px, ${-elSrc.scrollTop}px)`;
+  }
 }
 
 const VALIDATE_DEFAULT_HTML = `
@@ -170,13 +341,23 @@ const VALIDATE_DEFAULT_HTML = `
 `;
 
 export function syncGutter() {
-  const elSrc = document.getElementById('source');
-  const elGutter = document.getElementById('gutter');
+  if (!_elSrc) _elSrc = document.getElementById('source');
+  if (!_elGutter) _elGutter = document.getElementById('gutter');
+  const elSrc = _elSrc, elGutter = _elGutter;
   if (!elSrc || !elGutter) return;
 
-  const lines = elSrc.value.split('\n').length;
+  const lineCount = elSrc.value.split('\n').length;
+  const errKey = (window.hlErrorLines ? [...window.hlErrorLines].join(',') : '') +
+    '|' + [...editorErrorLines].join(',') + '|' + [...editorWarningLines].join(',');
+
+  // Skip full rebuild if nothing changed — just sync scroll
+  if (lineCount === _prevGutterLineCount && errKey === _prevGutterErrKey) {
+    elGutter.scrollTop = elSrc.scrollTop;
+    return;
+  }
+
   let html = '';
-  for (let i = 1; i <= lines; i++) {
+  for (let i = 1; i <= lineCount; i++) {
     const isErr = (window.hlErrorLines && window.hlErrorLines.has(i - 1)) || editorErrorLines.has(i);
     const isWarn = editorWarningLines.has(i);
     if (isErr) {
@@ -189,20 +370,23 @@ export function syncGutter() {
   }
   elGutter.innerHTML = html;
   elGutter.scrollTop = elSrc.scrollTop;
+
+  _prevGutterLineCount = lineCount;
+  _prevGutterErrKey = errKey;
 }
 
 export function extractErrorLineNumber(err, hash) {
   if (hash && typeof hash.line === 'number' && hash.line > 0) {
     return hash.line;
   }
-  if (err && typeof err.line === 'number' && err.line > 0) {
-    return err.line;
-  }
   if (err && err.hash && typeof err.hash.line === 'number' && err.hash.line > 0) {
     return err.hash.line;
   }
   if (err && err.loc && typeof err.loc.first_line === 'number' && err.loc.first_line > 0) {
     return err.loc.first_line;
+  }
+  if (err && typeof err.line === 'number' && err.line > 0 && !err.sourceURL) {
+    return err.line;
   }
   const msg = (typeof err === 'string' ? err : (err?.message || err?.str || String(err || '')));
   const m = msg.match(/line\s*:?\s*(\d+)/i) || msg.match(/on\s+line\s*:?\s*(\d+)/i) || msg.match(/:\s*(\d+)\s*:/);
@@ -286,7 +470,8 @@ export function getDiagramDiagnostic(text) {
 }
 
 export function showEditorError(err, hash) {
-  const elSrc = document.getElementById('source');
+  if (!_elSrc) _elSrc = document.getElementById('source');
+  const elSrc = _elSrc;
   if (!elSrc) return;
   const text = elSrc.value;
   const linesArray = findAllErrorLines(text, err, hash);
@@ -327,7 +512,14 @@ export function showEditorError(err, hash) {
   }
 
   const btnFix = document.getElementById('fixBtn');
-  if (btnFix) btnFix.style.display = 'inline-flex';
+  if (btnFix) {
+    const trimmed = text.trim().toLowerCase();
+    const isHeaderTyping = !text.includes('\n') && (
+      trimmed === '' ||
+      ['flowchart', 'sequence', 'sequencediagram', 'class', 'classdiagram', 'state', 'statediagram', 'statediagram-v2', 'er', 'erdiagram'].some(p => p.startsWith(trimmed))
+    );
+    btnFix.style.display = isHeaderTyping ? 'none' : 'inline-flex';
+  }
 }
 
 export function clearEditorError() {
@@ -337,6 +529,7 @@ export function clearEditorError() {
     window.hlErrorLines.clear();
   }
   syncGutter();
+  syncLocalHL();
 
   const errBar = document.getElementById('editorErrorBar');
   if (errBar) {
@@ -430,4 +623,42 @@ export function showEditorWarnings(warnings) {
 
   const btnFix = document.getElementById('fixBtn');
   if (btnFix) btnFix.style.display = 'inline-flex';
+}
+
+if (typeof document !== 'undefined') {
+  // Track when a color picker dialog is open so syncLocalHL skips DOM rebuild
+  document.addEventListener('pointerdown', (e) => {
+    if (e.target && e.target.classList.contains('inline-color-picker')) {
+      window._colorPickerActive = true;
+    }
+  });
+
+  document.addEventListener('input', (e) => {
+    if (e.target && e.target.classList.contains('inline-color-picker')) {
+      const lineIndex = parseInt(e.target.getAttribute('data-line'), 10);
+      const matchIndex = parseInt(e.target.getAttribute('data-match-index'), 10);
+      const newHex = e.target.value;
+      updateCodeColor(lineIndex, matchIndex, newHex, true);
+    }
+  });
+
+  document.addEventListener('change', (e) => {
+    if (e.target && e.target.classList.contains('inline-color-picker')) {
+      // Color picker dialog closed — safe to rebuild highlight layer
+      window._colorPickerActive = false;
+      const lineIndex = parseInt(e.target.getAttribute('data-line'), 10);
+      const matchIndex = parseInt(e.target.getAttribute('data-match-index'), 10);
+      const newHex = e.target.value;
+      updateCodeColor(lineIndex, matchIndex, newHex, false);
+    }
+  });
+
+  // Safety: clear _colorPickerActive if user dismisses dialog with Escape
+  // (no 'change' event fires in that case, leaving highlights frozen)
+  document.addEventListener('focusout', (e) => {
+    if (e.target && e.target.classList.contains('inline-color-picker') && window._colorPickerActive) {
+      window._colorPickerActive = false;
+      syncLocalHL();
+    }
+  }, true);
 }

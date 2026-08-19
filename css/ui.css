@@ -204,6 +204,7 @@
       background-color: var(--bg-canvas);
       background-image: radial-gradient(var(--bg-dot) 1.5px, transparent 1.5px);
       background-size: 24px 24px;
+      font-family: system-ui, sans-serif;
     }
 
     .preview-container {
@@ -236,7 +237,9 @@
       box-sizing: border-box;
       width: 100%;
       height: 100%;
-      display: block;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       position: absolute;
       inset: 0;
       overflow: hidden;
@@ -247,11 +250,11 @@
     }
 
     #zoomWrap {
-      transform-origin: 0 0;
-      position: absolute;
-      top: 0;
-      left: 0;
+      transform-origin: center center;
       will-change: transform;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
 
     #zoomWrap .mermaid {
@@ -321,7 +324,6 @@
       align-items: center;
       gap: 0.4rem;
       box-shadow: 0 2px 8px var(--shadow);
-      font-family: inherit;
     }
 
     .pill-btn {
@@ -371,7 +373,6 @@
       align-items: center;
       gap: 0.5rem;
       transition: background 0.2s ease;
-      font-family: inherit;
       font-weight: 600;
       font-size: 0.95rem;
     }
@@ -484,7 +485,7 @@
       text-align: right;
       font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
       font-size: var(--editor-font-size, 13.12px);
-      line-height: 20px;
+      line-height: var(--editor-line-height, 20px);
       color: var(--text-gutter);
       user-select: none;
       overflow: hidden;
@@ -492,10 +493,12 @@
       background: var(--bg-gutter);
       border-right: 1px solid var(--border-color);
     }
-    
+
     .gutter span {
       display: block;
-      height: 20px;
+      height: var(--editor-line-height, 20px);
+      line-height: var(--editor-line-height, 20px);
+      box-sizing: border-box;
     }
 
     .gutter-error-line {
@@ -527,7 +530,6 @@
       border-top: 1px solid rgba(239, 68, 68, 0.3);
       color: #f87171;
       font-size: 0.82rem;
-      font-family: system-ui, sans-serif;
       line-height: 1.4;
       flex-shrink: 0;
       max-height: 90px;
@@ -546,8 +548,8 @@
       min-height: 0;
       font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
       font-size: var(--editor-font-size, 13.12px);
-      line-height: 20px;
-      padding: .6rem;
+      line-height: var(--editor-line-height, 20px);
+      padding: .6rem 1.3rem;
       border: none;
       border-radius: 0;
       background: transparent;
@@ -907,4 +909,319 @@
 
     .ai-btn:hover {
       background: var(--bg-element-hover);
+    }
+
+    /* ---- Extracted UI Styles ---- */
+    .src-hidden .editor-panel,
+    .src-hidden #sourceCol {
+      display: none !important;
+    }
+
+    .export-modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.4);
+      backdrop-filter: blur(2px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    .export-modal {
+      background: var(--bg-body);
+      border-radius: 12px;
+      width: 900px;
+      max-width: 95vw;
+      aspect-ratio: 4 / 3;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+      border: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .export-modal-header {
+      padding: 0.85rem 1.25rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    .export-modal-header h2 {
+      margin: 0;
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .export-modal-body {
+      display: grid;
+      grid-template-columns: 210px 1fr;
+      gap: 1rem;
+      padding: 0 1.25rem;
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .export-section {
+      margin-bottom: 0.75rem;
+    }
+
+    .export-section h3 {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--text-main);
+      margin: 0 0 0.5rem 0;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+    }
+
+    .export-share-box {
+      margin-top: 1rem;
+      padding: 1rem;
+      border-radius: 8px;
+      background: rgba(14, 143, 125, 0.05);
+      border: 1px solid rgba(14, 143, 125, 0.2);
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      display: flex;
+      gap: 0.75rem;
+      align-items: flex-start;
+    }
+
+    .export-share-box a {
+      color: var(--accent);
+      font-weight: 600;
+      text-decoration: none;
+    }
+
+    .export-modal-right {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .export-modal-right h3 {
+      font-size: 0.82rem;
+      font-weight: 600;
+      margin: 0 0 0.5rem 0;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+    }
+
+    .export-preview-box {
+      flex: 1;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      background: #ffffff;
+      overflow: auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 150px;
+      padding: 3rem;
+      position: relative;
+    }
+
+    .export-preview-box svg {
+      max-width: 100%;
+      max-height: 100%;
+    }
+
+    .export-modal-footer {
+      padding: 0.75rem 1.25rem;
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.75rem;
+      border-top: 1px solid var(--border-color);
+      flex-shrink: 0;
+    }
+
+    .export-btn-cancel {
+      padding: 8px 16px;
+      border-radius: 8px;
+      border: none;
+      font-weight: 600;
+      cursor: pointer;
+      background: var(--bg-element);
+      color: var(--text-main);
+      font-size: 0.9rem;
+    }
+
+    .export-btn-confirm {
+      padding: 0.5rem 0.8rem;
+      border-radius: 8px;
+      border: none;
+      font-weight: 600;
+      cursor: pointer;
+      background: var(--bg-element);
+      color: var(--accent);
+      font-size: 0.95rem;
+      transition: background 0.2s;
+    }
+
+    .export-btn-confirm:hover {
+      background: var(--bg-element-hover);
+    }
+
+    /* ---- Extracted Dragging, Resizing & Export Option Styles ---- */
+
+
+
+
+    body.is-dragging .preview,
+    body.is-resizing-col .preview {
+      pointer-events: none !important;
+    }
+
+
+
+
+
+    body.is-dragging {
+      user-select: none !important;
+      -webkit-user-select: none !important;
+      cursor: grabbing !important;
+    }
+
+
+
+
+
+    body.is-resizing-col {
+      user-select: none !important;
+      -webkit-user-select: none !important;
+      cursor: ew-resize !important;
+    }
+
+
+
+
+
+    .format-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+
+
+
+
+    .format-option {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.45rem 0.75rem;
+      border-radius: 6px;
+      border: 1px solid var(--border-color);
+      cursor: pointer;
+      background: var(--bg-element);
+      transition: all 0.2s;
+      margin: 0;
+    }
+
+
+
+
+
+    .format-option:hover {
+      background: var(--bg-element-hover);
+    }
+
+
+
+
+
+    .format-option.active {
+      border-color: var(--accent);
+      background: rgba(14, 143, 125, 0.05);
+    }
+
+
+
+
+
+    .format-option input[type="radio"] {
+      accent-color: var(--accent);
+      transform: scale(1.2);
+      margin: 0;
+      cursor: pointer;
+    }
+
+
+
+
+
+    .format-title {
+      font-weight: 600;
+      font-size: 0.82rem;
+      color: var(--text-main);
+      line-height: 1.2;
+    }
+
+
+
+
+
+    .format-desc {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      margin-top: 1px;
+    }
+
+
+
+
+
+    .bg-color-options {
+      display: flex;
+      gap: 0.75rem;
+    }
+
+
+
+
+
+    .bg-swatch {
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      border: 2px solid var(--border-color);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+
+
+
+
+    .bg-swatch.active {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px var(--bg-body), 0 0 0 4px var(--accent);
+    }
+
+
+
+
+
+    .transparent-swatch {
+      background: repeating-conic-gradient(#ccc 0% 25%, white 0% 50%) 50% / 10px 10px;
+    }
+
+
+
+
+
+    .color-picker-swatch {
+      background: var(--bg-element);
+      color: var(--text-main);
+      border: 2px dashed var(--border-color);
     }

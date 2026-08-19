@@ -7,6 +7,7 @@ import { renderOne } from './renderer.js';
 import { initUiPanels, initSnippets, initInteractiveSelection, initExportModal } from './ui.js';
 import { initZoomPanControls } from './zoom-pan.js';
 import { autoFixMermaidCode, formatAndAlignMermaidCode, updateParticipantAliasesInCode } from './auto-fix.js';
+import { initAutocomplete } from './autocomplete.js';
 
 window.VALID_DIAGRAM_TYPES = VALID_DIAGRAM_TYPES;
 window.ALLOWED_DIAGRAM_TYPES = ALLOWED_DIAGRAM_TYPES;
@@ -125,12 +126,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  const diagramAutonumberToggleBtn = document.getElementById('diagramAutonumberToggleBtn');
+  const getAutonumberConfig = () => {
+    return diagramAutonumberToggleBtn ? diagramAutonumberToggleBtn.checked : false;
+  };
+
   // Initialize Mermaid library
   // Using securityLevel 'strict' (default) to prevent XSS attacks when hosted publicly.
   await mermaid.initialize({
     startOnLoad: false,
     theme: elTheme && elTheme.value === 'teal' ? 'dark' : (elTheme ? elTheme.value : 'dark'),
-    securityLevel: 'strict'
+    securityLevel: 'strict',
+    sequence: {
+      showSequenceNumbers: getAutonumberConfig()
+    }
   });
 
   mermaid.parseError = (err, hash) => {
@@ -145,16 +154,21 @@ document.addEventListener('DOMContentLoaded', async () => {
   initExportModal();
 
   // Inject syntax highlighting palette styles
-  try { injectHLPaletteColors(); } catch (e) {}
+  try { injectHLPaletteColors(); } catch (e) { }
 
   window.addEventListener('paletteChanged', () => {
-    try { injectHLPaletteColors(); } catch (e) {}
+    try { injectHLPaletteColors(); } catch (e) { }
     elSrc.dispatchEvent(new Event('input'));
   });
 
   const elHlMode = document.getElementById('hlMode');
   if (elHlMode) {
-    elHlMode.addEventListener('change', syncLocalHL);
+    const savedHlMode = localStorage.getItem('editorHlMode');
+    if (savedHlMode) elHlMode.value = savedHlMode;
+    elHlMode.addEventListener('change', () => {
+      localStorage.setItem('editorHlMode', elHlMode.value);
+      syncLocalHL();
+    });
   }
 
   if (autoUpdateToggle) {
@@ -165,10 +179,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  let lastSelectionStart = 0;
+  let lastSelectionEnd = 0;
+
   if (elSrc) {
     const handleCursorSync = () => {
+      lastSelectionStart = elSrc.selectionStart;
+      lastSelectionEnd = elSrc.selectionEnd;
       syncGutter();
       syncLocalHL();
+      window.dispatchEvent(new CustomEvent('cursorSync', {
+        detail: { selectionStart: lastSelectionStart, selectionEnd: lastSelectionEnd }
+      }));
     };
 
     elSrc.addEventListener('input', handleCursorSync);
@@ -241,7 +263,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       let mmTheme = elTheme.value;
       if (mmTheme === 'teal') mmTheme = 'dark';
-      await mermaid.initialize({ startOnLoad: false, theme: mmTheme, securityLevel: 'strict' });
+      await mermaid.initialize({
+        startOnLoad: false,
+        theme: mmTheme,
+        securityLevel: 'strict',
+        sequence: {
+          showSequenceNumbers: getAutonumberConfig()
+        }
+      });
       renderOne(elSrc.value);
     });
   }
@@ -253,7 +282,31 @@ document.addEventListener('DOMContentLoaded', async () => {
       document.documentElement.classList.toggle('theme-light', !isTeal);
       document.documentElement.classList.toggle('theme-teal', isTeal);
       document.documentElement.style.colorScheme = isTeal ? 'dark' : 'light';
-      await mermaid.initialize({ startOnLoad: false, theme: isTeal ? 'dark' : 'default', securityLevel: 'strict' });
+      await mermaid.initialize({
+        startOnLoad: false,
+        theme: isTeal ? 'dark' : 'default',
+        securityLevel: 'strict',
+        sequence: {
+          showSequenceNumbers: getAutonumberConfig()
+        }
+      });
+      renderOne(elSrc.value);
+    });
+  }
+
+  if (diagramAutonumberToggleBtn) {
+    diagramAutonumberToggleBtn.addEventListener('change', async () => {
+      const isAutonumber = diagramAutonumberToggleBtn.checked;
+      let mmTheme = elTheme ? elTheme.value : 'dark';
+      if (mmTheme === 'teal') mmTheme = 'dark';
+      await mermaid.initialize({
+        startOnLoad: false,
+        theme: mmTheme,
+        securityLevel: 'strict',
+        sequence: {
+          showSequenceNumbers: isAutonumber
+        }
+      });
       renderOne(elSrc.value);
     });
   }
@@ -285,7 +338,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         await navigator.clipboard.writeText(elSrc.value);
         btnCopy.style.color = 'var(--accent)';
         setTimeout(() => { btnCopy.style.color = ''; }, 1000);
-      } catch (e) {}
+      } catch (e) { }
     });
   }
 
@@ -319,8 +372,21 @@ document.addEventListener('DOMContentLoaded', async () => {
       const code = elSrc.value;
       const fixedCode = autoFixMermaidCode(code);
       if (fixedCode !== code) {
+        const start = lastSelectionStart;
+        const end = lastSelectionEnd;
+        const scrollTop = elSrc.scrollTop;
+        const scrollLeft = elSrc.scrollLeft;
+
         elSrc.value = fixedCode;
+
+        elSrc.focus();
+        elSrc.selectionStart = start;
+        elSrc.selectionEnd = end;
+        elSrc.scrollTop = scrollTop;
+        elSrc.scrollLeft = scrollLeft;
+
         syncGutter();
+        syncLocalHL();
         clearEditorError();
         await renderOne(fixedCode);
       }
@@ -344,6 +410,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
 
+
+  // Initialize diagram type autocomplete
+  initAutocomplete(elSrc);
 
   // Load initial example
   if (elType && elType.value) {
