@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 
 test.describe('\'Editor Layering and Drag Sync\', (', () => {
 
-  test('diagram preview container left stops moving when editor reaches 35vw min width', async ({ page }) => {
+  test('diagram preview container left stops moving when editor reaches 40vw min width', async ({ page }) => {
     await page.goto('/');
     const previewContainer = page.locator('.preview-container');
     const resizeHandle = page.locator('#editorResizeHandle');

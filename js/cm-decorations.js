@@ -12,14 +12,31 @@
  */
 
 import { Decoration, ViewPlugin, WidgetType } from '@codemirror/view';
+import { StateEffect } from '@codemirror/state';
 import {
-  RGB_REGEX, buildAliasColorMap, parseRgb, hexToRgb, rgbToHex,
+  RGB_REGEX, buildDiagramColorMap, buildAliasColorMap, parseRgb, hexToRgb, rgbToHex,
 } from './editor.js';
-import { getSeqPalette, currentPaletteName, isPaletteReversed } from './palettes.js';
+import { currentPaletteName, isPaletteReversed } from './palettes.js';
 
 // Module-level handle to the active EditorView so the (out-of-DOM) color proxy
 // can push edits back into the document.
 let _view = null;
+
+export const forceDecorationRefreshEffect = StateEffect.define();
+
+export function refreshCmDecorations() {
+  if (_view) {
+    _view.dispatch({
+      effects: forceDecorationRefreshEffect.of(null)
+    });
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('paletteChanged', () => {
+    refreshCmDecorations();
+  });
+}
 
 // Persistent, off-screen native color input. A single instance is reused for
 // every swatch so the OS color dialog stays open across live edits.
@@ -150,12 +167,15 @@ function buildDecorations(view) {
     }
   }
 
-  // ── Alias → lane colors (reuses the legacy color map) ──────────────────────
-  const colorMap = buildAliasColorMap(text, getSeqPalette(currentPaletteName(), isPaletteReversed()));
+  // ── Diagram entity / node / alias colors ────────────────────────────────────
+  const colorMap = buildDiagramColorMap(text, currentPaletteName(), isPaletteReversed());
   if (colorMap.size) {
     for (let i = 1; i <= doc.lines; i++) {
       const line = doc.line(i);
       const ltext = line.text;
+      const trimmed = ltext.trim();
+      if (trimmed.startsWith('%%')) continue;
+
       for (const [name, colorObj] of colorMap.entries()) {
         if (!name) continue;
         const color = typeof colorObj === 'string' ? colorObj : (colorObj.fill || colorObj);
@@ -188,7 +208,8 @@ export const cmDecorations = ViewPlugin.fromClass(
       this.decorations = buildDecorations(view);
     }
     update(u) {
-      if (u.docChanged || u.viewportChanged) {
+      const hasRefresh = u.transactions.some(tr => tr.effects.some(e => e.is(forceDecorationRefreshEffect)));
+      if (u.docChanged || u.viewportChanged || hasRefresh) {
         this.decorations = buildDecorations(u.view);
       }
     }

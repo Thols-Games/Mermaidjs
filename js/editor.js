@@ -15,15 +15,77 @@ import { validateSequenceDiagram } from './validators/sequence-validator.js';
 export const editorErrorLines = new Set();
 export const editorWarningLines = new Set();
 
-import { getSeqPalette, currentPaletteName, isPaletteReversed } from './palettes.js';
+import { getSeqPalette, getFlowPalette, currentPaletteName, isPaletteReversed } from './palettes.js';
 
 // Single shared instance so the CM lint gutter and any legacy consumers agree.
 export const hlErrorLines = new Set();
 if (typeof window !== 'undefined') window.hlErrorLines = hlErrorLines;
 
-export function buildAliasColorMap(sourceText, seqPalette) {
+export function detectDiagramType(sourceText) {
+  if (!sourceText) return 'unknown';
+  const clean = sourceText.replace(/^---[\s\S]*?---\s*/, '').trim();
+  const firstLine = clean.split('\n')[0] || '';
+  if (/^(?:flowchart|graph)\b/i.test(firstLine)) return 'flowchart';
+  if (/^(?:sequenceDiagram)\b/i.test(firstLine)) return 'sequence';
+  if (/^(?:classDiagram)\b/i.test(firstLine)) return 'class';
+  if (/^(?:stateDiagram(?:-v2)?)\b/i.test(firstLine)) return 'state';
+  if (/^(?:erDiagram)\b/i.test(firstLine)) return 'er';
+  return 'unknown';
+}
+
+// ─── 1. Flowchart Coloring Section ──────────────────────────────────────────
+export function buildFlowchartColorMap(sourceText, flowPalette) {
   const map = new Map();
-  if (!sourceText) return map;
+  if (!sourceText || !flowPalette || !flowPalette.length) return map;
+  const lines = sourceText.replace(/\r/g, '').split('\n');
+  let colorIndex = 0;
+
+  const registerNode = (nodeId) => {
+    if (!nodeId) return;
+    const cleanId = nodeId.trim().replace(/^"|"$/g, '');
+    if (!cleanId) return;
+    if (/^(?:subgraph|end|flowchart|graph|direction|classDef|class|style|linkStyle|click|accTitle|accDescr|title|TB|TD|BT|RL|LR)$/i.test(cleanId)) return;
+    if (!map.has(cleanId)) {
+      map.set(cleanId, flowPalette[colorIndex % flowPalette.length]);
+      colorIndex++;
+    }
+  };
+
+  lines.forEach(line => {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('%%')) return;
+    if (/^(?:flowchart|graph|subgraph|end|direction|classDef|linkStyle|click)\b/i.test(trimmed)) return;
+
+    // Strip edge labels |label| and -- label -->
+    let cleanLine = trimmed.replace(/\|[^|\n]*\|/g, ' ');
+    cleanLine = cleanLine.replace(/--\s+[^-\n]+\s+-->/g, '-->');
+
+    // 1. Extract explicit node shape declarations:
+    // id[...], id(...), id([...]), id[[...]], id[(...)], id((...)), id>...], id{...}, id{{...}}, id[/.../], id[\...\]
+    const shapeRegex = /([A-Za-z0-9_.-]+|"[^"]+")\s*(?:\[\[[\s\S]*?\]\]|\[[\s\S]*?\]|\(\(\([\s\S]*?\)\)\)|\(\([\s\S]*?\)\)|\(\[[\s\S]*?\]\)|\([\s\S]*?\)|\{\{[\s\S]*?\}\}|\{[\s\S]*?\}|\[\/[\s\S]*?\/\]|\[\\(?:[\s\S]*?)\\\]|\[\/[\s\S]*?\\\]|\[\\(?:[\s\S]*?)\/\]|>[\s\S]*?\])/g;
+    let sm;
+    while ((sm = shapeRegex.exec(cleanLine))) {
+      registerNode(sm[1]);
+    }
+
+    // 2. Extract node identifiers connected by arrows/connectors
+    const strippedLine = cleanLine.replace(/\[\[[\s\S]*?\]\]|\[[\s\S]*?\]|\(\(\([\s\S]*?\)\)\)|\(\([\s\S]*?\)\)|\(\[[\s\S]*?\]\)|\([\s\S]*?\)|\{\{[\s\S]*?\}\}|\{[\s\S]*?\}|\[\/[\s\S]*?\/\]|\[\\(?:[\s\S]*?)\\\]|\[\/[\s\S]*?\\\]|\[\\(?:[\s\S]*?)\/\]|>[\s\S]*?\]/g, ' ');
+    const parts = strippedLine.split(/(?:-->|--->|==>|-\.-\|>|-\.->|--x|--o|---|--|-\.-|<-->|~~~|&)/);
+    parts.forEach(part => {
+      const idMatch = part.trim().match(/^([A-Za-z0-9_.-]+|"[^"]+")$/);
+      if (idMatch) {
+        registerNode(idMatch[1]);
+      }
+    });
+  });
+
+  return map;
+}
+
+// ─── 2. Sequence Diagram Coloring Section ───────────────────────────────────
+export function buildSequenceColorMap(sourceText, seqPalette) {
+  const map = new Map();
+  if (!sourceText || !seqPalette || !seqPalette.length) return map;
   const lines = sourceText.replace(/\r/g, '').split('\n');
   let colorIndex = 0;
 
@@ -35,14 +97,10 @@ export function buildAliasColorMap(sourceText, seqPalette) {
     if (declMatch) {
       const id = declMatch[1] ? declMatch[1].replace(/^"|"$/g, '') : '';
       const label = declMatch[2] ? declMatch[2].replace(/^"|"$/g, '') : '';
-      // Prefer the identifier (left of `as`); if there is no `as`, the single
-      // name is both the id and the (only) label.
       const alias = id || label;
       if (alias && !map.has(alias)) {
         const color = seqPalette[colorIndex % seqPalette.length];
         map.set(alias, color);
-        // The identifier and display label refer to the SAME participant, so
-        // they must share one color in the editor (e.g. `A` and `Alice`).
         if (id && label && id !== label && !map.has(label)) {
           map.set(label, color);
         }
@@ -66,6 +124,152 @@ export function buildAliasColorMap(sourceText, seqPalette) {
   });
 
   return map;
+}
+
+// Legacy alias for backwards compatibility
+export const buildAliasColorMap = buildSequenceColorMap;
+
+// ─── 3. Class Diagram Coloring Section ──────────────────────────────────────
+export function buildClassColorMap(sourceText, seqPalette) {
+  const map = new Map();
+  if (!sourceText || !seqPalette || !seqPalette.length) return map;
+  const lines = sourceText.replace(/\r/g, '').split('\n');
+  let colorIndex = 0;
+
+  const registerClass = (className) => {
+    if (!className) return;
+    const clean = className.trim().replace(/^"|"$/g, '');
+    if (!clean || /^(?:class|classDiagram|direction|note|namespace)$/i.test(clean)) return;
+    if (!map.has(clean)) {
+      map.set(clean, seqPalette[colorIndex % seqPalette.length]);
+      colorIndex++;
+    }
+  };
+
+  lines.forEach(line => {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('%%')) return;
+
+    const classDefMatch = trimmed.match(/^class\s+([A-Za-z0-9_]+)/i);
+    if (classDefMatch) {
+      registerClass(classDefMatch[1]);
+      return;
+    }
+
+    const relMatch = trimmed.match(/^([A-Za-z0-9_]+)\s*(?:<\|--|--\|>|\*--|--\*|o--|--o|-->|<--|\.\.|--|<\|\.\.|\.\.\|>)\s*([A-Za-z0-9_]+)/);
+    if (relMatch) {
+      registerClass(relMatch[1]);
+      registerClass(relMatch[2]);
+      return;
+    }
+
+    const memberMatch = trimmed.match(/^([A-Za-z0-9_]+)\s*:/);
+    if (memberMatch) {
+      registerClass(memberMatch[1]);
+    }
+  });
+
+  return map;
+}
+
+// ─── 4. State Diagram Coloring Section ──────────────────────────────────────
+export function buildStateColorMap(sourceText, flowPalette) {
+  const map = new Map();
+  if (!sourceText || !flowPalette || !flowPalette.length) return map;
+  const lines = sourceText.replace(/\r/g, '').split('\n');
+  let colorIndex = 0;
+
+  const registerState = (stateName) => {
+    if (!stateName) return;
+    const clean = stateName.trim().replace(/^"|"$/g, '');
+    if (!clean || clean === '[*]' || /^(?:state|stateDiagram|stateDiagram-v2|direction|note|classDef)$/i.test(clean)) return;
+    if (!map.has(clean)) {
+      map.set(clean, flowPalette[colorIndex % flowPalette.length]);
+      colorIndex++;
+    }
+  };
+
+  lines.forEach(line => {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('%%')) return;
+
+    const stateDefMatch = trimmed.match(/^state\s+(?:("[^"]+"|[A-Za-z0-9_]+)\s+as\s+)?([A-Za-z0-9_]+)/i);
+    if (stateDefMatch) {
+      registerState(stateDefMatch[1] || stateDefMatch[2]);
+      if (stateDefMatch[1] && stateDefMatch[2]) registerState(stateDefMatch[2]);
+      return;
+    }
+
+    const transMatch = trimmed.match(/^(\[\*\]|[A-Za-z0-9_]+)\s*-->\s*(\[\*\]|[A-Za-z0-9_]+)/);
+    if (transMatch) {
+      if (transMatch[1] !== '[*]') registerState(transMatch[1]);
+      if (transMatch[2] !== '[*]') registerState(transMatch[2]);
+    }
+  });
+
+  return map;
+}
+
+// ─── 5. ER Diagram Coloring Section ─────────────────────────────────────────
+export function buildErColorMap(sourceText, seqPalette) {
+  const map = new Map();
+  if (!sourceText || !seqPalette || !seqPalette.length) return map;
+  const lines = sourceText.replace(/\r/g, '').split('\n');
+  let colorIndex = 0;
+
+  const registerEntity = (entityName) => {
+    if (!entityName) return;
+    const clean = entityName.trim().replace(/^"|"$/g, '');
+    if (!clean || /^(?:erDiagram|title|accTitle|accDescr)$/i.test(clean)) return;
+    if (!map.has(clean)) {
+      map.set(clean, seqPalette[colorIndex % seqPalette.length]);
+      colorIndex++;
+    }
+  };
+
+  lines.forEach(line => {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('%%')) return;
+
+    const blockMatch = trimmed.match(/^([A-Za-z0-9_-]+)\s*\{/);
+    if (blockMatch) {
+      registerEntity(blockMatch[1]);
+      return;
+    }
+
+    const relMatch = trimmed.match(/^([A-Za-z0-9_-]+)\s*(?:\|\|--o\{|\|\|--\|\{|\|\|--\|\||o\|--\|o|\.\.|\}\o--\o\{|\}\|--\|\{|\}\|--\o\{|\}\|--\|\||[|o}]+--[|o{]+)\s*([A-Za-z0-9_-]+)/);
+    if (relMatch) {
+      registerEntity(relMatch[1]);
+      registerEntity(relMatch[2]);
+    }
+  });
+
+  return map;
+}
+
+// ─── Unified Diagram Color Map Dispatcher ───────────────────────────────────
+export function buildDiagramColorMap(sourceText, paletteName = currentPaletteName(), isReversed = isPaletteReversed()) {
+  const type = detectDiagramType(sourceText);
+  if (type === 'flowchart') {
+    return buildFlowchartColorMap(sourceText, getFlowPalette(paletteName, isReversed));
+  }
+  if (type === 'sequence') {
+    return buildSequenceColorMap(sourceText, getSeqPalette(paletteName, isReversed));
+  }
+  if (type === 'class') {
+    return buildClassColorMap(sourceText, getSeqPalette(paletteName, isReversed));
+  }
+  if (type === 'state') {
+    return buildStateColorMap(sourceText, getFlowPalette(paletteName, isReversed));
+  }
+  if (type === 'er') {
+    return buildErColorMap(sourceText, getSeqPalette(paletteName, isReversed));
+  }
+
+  // Fallback for unknown
+  const fc = buildFlowchartColorMap(sourceText, getFlowPalette(paletteName, isReversed));
+  if (fc.size > 0) return fc;
+  return buildSequenceColorMap(sourceText, getSeqPalette(paletteName, isReversed));
 }
 
 const RGB_REGEX = /rgba?\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*(?:,\s*[0-9.]+\s*)?\)/gi;

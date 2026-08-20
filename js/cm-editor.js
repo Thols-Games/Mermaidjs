@@ -19,7 +19,7 @@ import { Compartment } from '@codemirror/state';
 import { linter, lintGutter, forceLinting } from '@codemirror/lint';
 import { mermaidLanguage, mermaidSyntaxHighlighting } from './mermaid-language.js';
 import { mermaidLinterSource, setExternalDiagnostics, clearExternalDiagnostics } from './cm-diagnostics.js';
-import { cmDecorations, applyRgbColor } from './cm-decorations.js';
+import { cmDecorations, applyRgbColor, refreshCmDecorations } from './cm-decorations.js';
 import { cmAutocomplete, completionKeymap } from './cm-autocomplete.js';
 import { highlightDiagramNodeByText } from './ui.js';
 
@@ -253,6 +253,7 @@ export function initCmEditor() {
         if (!view) return;
         view.dispatch({ effects: hlModeCompartment.reconfigure(hlModeExtension(!!on)) });
       },
+      refreshDecorations: refreshCmDecorations,
     };
 
     return view;
