@@ -425,50 +425,6 @@
       color: var(--text-main);
     }
 
-    .editor-panel {
-      position: absolute;
-      top: 1rem;
-      left: 1rem;
-      bottom: 1rem;
-      width: 35vw;
-      min-width: 35vw;
-      max-width: 60vw;
-      background: var(--bg-body);
-      border-radius: 12px;
-      box-shadow: 0 8px 32px var(--shadow);
-      border: 1px solid var(--border-color);
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-      z-index: 100;
-    }
-
-    @media (max-width: 720px) {
-      .editor-panel {
-        display: none;
-      }
-    }
-
-    /* Quick responsive hide for now */
-
-    .editor-resize-handle {
-      position: absolute;
-      right: 0;
-      top: 0;
-      bottom: 0;
-      width: 6px;
-      cursor: ew-resize;
-      z-index: 100;
-      background: transparent;
-      transition: background 0.2s;
-    }
-
-    .editor-resize-handle:hover,
-    .editor-resize-handle.dragging {
-      background: var(--accent);
-      opacity: 0.5;
-    }
-
     .editor-body {
       display: flex;
       flex: 1;

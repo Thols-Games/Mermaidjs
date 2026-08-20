@@ -200,6 +200,48 @@ export function colorizeClass() {
   return true;
 }
 
+export function colorizeState() {
+  const svg = currentSvg();
+  if (!svg) return false;
+  const nodes = svg.querySelectorAll('g.stateGroup, .node.state');
+  if (!nodes.length) return false;
+
+  const flowPalette = getFlowPalette(currentPaletteName(), isPaletteReversed());
+  const isDark = isDarkFamily();
+
+  nodes.forEach((node, i) => {
+    const colorObj = flowPalette[i % flowPalette.length];
+    node.setAttribute('data-cnode', String(i));
+    node.querySelectorAll('rect, circle, polygon, path').forEach(shape => {
+      if (!shape.classList.contains('outer')) {
+        setInline(shape, { fill: badgeTint(colorObj.fill, isDark), stroke: colorObj.fill, 'stroke-width': '2' });
+      }
+    });
+  });
+  return true;
+}
+
+export function colorizeER() {
+  const svg = currentSvg();
+  if (!svg) return false;
+  const nodes = svg.querySelectorAll('g[id^="entity-"], g.entityBox, g.node.entity');
+  if (!nodes.length) return false;
+
+  const seqPalette = getSeqPalette(currentPaletteName(), isPaletteReversed());
+  const isDark = isDarkFamily();
+
+  nodes.forEach((group, i) => {
+    const colorObj = seqPalette[i % seqPalette.length];
+    group.querySelectorAll('rect, polygon, path').forEach(shape => {
+      setInline(shape, { fill: badgeTint(colorObj.fill, isDark), stroke: colorObj.fill, 'stroke-width': '2' });
+    });
+    group.querySelectorAll('text.er.entityLabel, text').forEach(t => {
+      setInline(t, { fill: colorObj.fill, 'font-weight': '700' });
+    });
+  });
+  return true;
+}
+
 export function colorizeDiagram() {
   const svg = currentSvg();
   if (!svg) return false;
@@ -269,7 +311,7 @@ export function colorizeFlowchart() {
     const colorObj = flowPalette[i % flowPalette.length];
     node.setAttribute('data-cnode', String(i));
     node.querySelectorAll('rect, circle, polygon, path').forEach(shape => {
-      if (!shape.classList.contains('outer')) {
+      if (!shape.classList.contains('outer') && !shape.closest('.cluster')) {
         setInline(shape, { fill: badgeTint(colorObj.fill, isDark), stroke: colorObj.fill, 'stroke-width': '2' });
       }
     });
@@ -459,8 +501,10 @@ export async function renderOne(text) {
       if (mySeq !== renderSeq) return;
       try { colorizeSequence(); } catch (e) {}
       try { colorizeClass(); } catch (e) {}
-      try { colorizeDiagram(); } catch (e) {}
+      try { colorizeState(); } catch (e) {}
+      try { colorizeER(); } catch (e) {}
       try { colorizeFlowchart(); } catch (e) {}
+      try { colorizeDiagram(); } catch (e) {}
       try { applyDiagramStyle(); } catch (e) {}
       try { applyDiagramFont(); } catch (e) {}
       try { applyDiagramThickness(); } catch (e) {}

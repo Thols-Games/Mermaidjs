@@ -104,7 +104,7 @@
       z-index: 5;
     }
 
-    .cm-host > .cm-editor {
+    .cm-host>.cm-editor {
       height: 100%;
     }
 
@@ -189,6 +189,9 @@
 
     /* ---- Editor Container & Layout ---- */
     :root {
+      --editor-min-width: 40vw;
+      --editor-max-width: 60vw;
+      --editor-width: 40vw;
       --editor-line-height: calc(var(--editor-font-size, 13.12px) * 1.5);
     }
 
@@ -197,9 +200,9 @@
       top: 1rem;
       left: 1rem;
       bottom: 1rem;
-      width: 35vw;
-      min-width: 35vw;
-      max-width: 60vw;
+      width: var(--editor-width);
+      min-width: var(--editor-min-width);
+      max-width: var(--editor-max-width);
       background: var(--bg-body);
       border-radius: 12px;
       box-shadow: 0 8px 32px var(--shadow);

@@ -358,8 +358,9 @@ export async function initUiPanels() {
     if (!isResizingEditor) return;
     e.preventDefault();
 
-    const minW = window.innerWidth * 0.35;
-    const maxW = window.innerWidth * 0.60;
+    const computed = getComputedStyle(sourceCol);
+    const minW = parseFloat(computed.minWidth) || 0;
+    const maxW = parseFloat(computed.maxWidth) || Infinity;
 
     let newWidth = editorStartWidth + (e.clientX - resizeStartX);
     newWidth = Math.max(minW, Math.min(maxW, newWidth));
